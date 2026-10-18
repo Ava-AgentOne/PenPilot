@@ -3,6 +3,7 @@ declare module "wake-lock";
 declare module "color-interpolate";
 declare module "colormap";
 declare module "imagetracerjs";
+declare module "clipper-lib";
 declare module "skeleton-tracing-js";
 declare module "*.svg";
 

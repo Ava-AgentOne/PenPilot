@@ -53,7 +53,7 @@ self.onmessage = (e: MessageEvent) => {
     } else {
       const thick = config["Loops for thick parts"] === true ? thickParts(dark, w, h) : null;
       lines = traceCentreLines(dark, w, h);
-      if (thick && thick.loops.length) {
+      if (thick?.loops.length) {
         loops = thick.loops;
         // Centre lines through a thick part are replaced by its loop.
         lines = lines.flatMap((l) => cutOut(l, (x, y) => thick.area[Math.round(y) * w + Math.round(x)] === 1));

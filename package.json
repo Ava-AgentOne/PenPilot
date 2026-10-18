@@ -77,6 +77,7 @@
     "@fontsource/reem-kufi": "5.3.0",
     "@fontsource/tajawal": "5.3.0",
     "@fontsource/work-sans": "5.3.0",
+    "clipper-lib": "6.4.2",
     "color-interpolate": "^2.0.0",
     "colormap": "^2.3.2",
     "cors": "^2.8.5",

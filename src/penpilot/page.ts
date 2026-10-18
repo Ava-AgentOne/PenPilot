@@ -21,6 +21,7 @@ import {
   type PhotoInfo,
   rasterSize,
 } from "./photo.js";
+import { closedRings, defaultFill, type FillInfo, fillShapes } from "./hatch.js";
 import { defaultText, type TextInfo } from "./text.js";
 
 export const MM_PER_SOURCE_UNIT = 25.4 / 96;
@@ -56,6 +57,53 @@ export interface PageItem {
   fillOnly?: boolean;
   /** Set for text: what to write and how; `paths` come from usePenText. */
   text?: TextInfo;
+  /** Hatch fill for the item's closed shapes. */
+  fill?: FillInfo;
+}
+
+// ---- What actually gets drawn ----------------------------------------------------
+
+const drawnCache = new WeakMap<Path[], Map<string, { paths: Path[]; shapes: number }>>();
+
+/**
+ * The item's lines plus its hatch fill (if any), in source units. Fill spacing
+ * is kept in real mm and the angle relative to the page, whatever the item's
+ * size and rotation. Cached per item lines + settings.
+ */
+export function itemDrawnPaths(item: PageItem): { paths: Path[]; shapes: number } {
+  const fill = item.fill;
+  const key = JSON.stringify([fill ?? null, item.scale, item.rotation]);
+  let byKey = drawnCache.get(item.paths);
+  const hit = byKey?.get(key);
+  if (hit) return hit;
+  const tol = 0.02 / item.scale; // ends within 0.02 mm count as closed
+  const byColour = new Map<string, Vec2[][]>();
+  const closed = new Set<Path>();
+  for (const p of item.paths) {
+    if (closedRings([p.points], tol).length === 0) continue;
+    closed.add(p);
+    const list = byColour.get(p.stroke) ?? [];
+    list.push(p.points);
+    byColour.set(p.stroke, list);
+  }
+  let paths = item.paths;
+  if (fill && fill.kind !== "none" && closed.size > 0) {
+    const kept = fill.outline ? item.paths : item.paths.filter((p) => !closed.has(p));
+    const extra: Path[] = [];
+    for (const [stroke, rings] of byColour) {
+      for (const points of fillShapes(rings, fill.kind, fill.spacingMm / item.scale, fill.angle - item.rotation)) {
+        extra.push({ stroke, groupId: "", points });
+      }
+    }
+    paths = kept.concat(extra);
+  }
+  const result = { paths, shapes: closed.size };
+  if (!byKey) {
+    byKey = new Map();
+    drawnCache.set(item.paths, byKey);
+  }
+  byKey.set(key, result);
+  return result;
 }
 
 export interface Page {
@@ -193,7 +241,7 @@ export function plannerPaths(page: Page, placement: Placement, pageSize: Size): 
     const seen = names.get(item.name) ?? 0;
     names.set(item.name, seen + 1);
     const groupId = seen === 0 ? item.name : `${item.name} (${seen + 1})`;
-    for (const path of item.paths) {
+    for (const path of itemDrawnPaths(item).paths) {
       out.push({
         stroke: path.stroke,
         groupId,
@@ -384,6 +432,8 @@ export type PageAction =
   | { type: "remove"; id: string }
   /** Swap one item for another in the same place in the list (e.g. SVG -> its trace). */
   | { type: "replace"; id: string; item: PageItem }
+  /** Set, change or (null) remove an item's hatch fill. */
+  | { type: "fill"; id: string; fill: Partial<FillInfo> | null }
   /** Text settings (panel) and laid-out strokes (usePenText). */
   | { type: "textSettings"; id: string; text: Partial<TextInfo>; scale?: number }
   | { type: "textResult"; id: string; paths: Path[]; width: number; height: number; error?: string }
@@ -411,6 +461,15 @@ export function pageReducer(page: Page, action: PageAction): Page {
       return {
         items: page.items.map((it) => (it.id === action.id ? action.item : it)),
         selectedId: page.selectedId === action.id ? action.item.id : page.selectedId,
+      };
+    case "fill":
+      return {
+        ...page,
+        items: page.items.map((it) => {
+          if (it.id !== action.id) return it;
+          if (action.fill === null) return { ...it, fill: undefined };
+          return { ...it, fill: { ...(it.fill ?? defaultFill()), ...action.fill } };
+        }),
       };
     case "textSettings":
       return {

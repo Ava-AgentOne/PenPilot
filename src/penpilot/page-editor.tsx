@@ -14,6 +14,7 @@ import {
   type Bounds,
   centreItem,
   fitItem,
+  itemDrawnPaths,
   itemOverflows,
   itemSize,
   itemSvgTransform,
@@ -26,6 +27,7 @@ import {
   type Size,
   setPhotoDetail,
 } from "./page.js";
+import type { FillInfo, FillKind } from "./hatch.js";
 import { MAX_DETAIL, MIN_DETAIL, PHOTO_STYLES, type PhotoConfig, TRACE_STYLES } from "./photo.js";
 import { type Align, SINGLE_LINE_FONTS, type TextInfo } from "./text.js";
 import { isTracedFont, TRACED_FONTS } from "./traced-text.js";
@@ -57,14 +59,15 @@ const ItemLines = React.memo(function ItemLines({
   showPhoto: boolean;
 }) {
   // One <path> per stroke colour, so each drawing shows in its own pen colours.
+  const drawn = itemDrawnPaths(item).paths; // the item's lines plus any hatch fill
   const byColour = useMemo(() => {
     const m = new Map<string, string>();
-    for (const p of item.paths) {
+    for (const p of drawn) {
       const colour = p.stroke && p.stroke !== "none" ? p.stroke : "#222";
       m.set(colour, (m.get(colour) ?? "") + pathData(p.points));
     }
     return [...m.entries()];
-  }, [item.paths]);
+  }, [drawn]);
   return (
     <g transform={itemSvgTransform(item)}>
       {item.photo && showPhoto && (
@@ -447,10 +450,21 @@ export function DrawingsPanel({
           <button type="button" className="pp-fill-only-button" disabled={locked} onClick={() => onTraceSvg(selected)}>
             Trace centre lines instead
           </button>
+          {!selected.fill && (
+            <button
+              type="button"
+              className="pp-fill-only-button"
+              disabled={locked}
+              onClick={() => pageDispatch({ type: "fill", id: selected.id, fill: {} })}
+            >
+              Fill them with hatching
+            </button>
+          )}
         </div>
       )}
       {selected?.photo && <PhotoPanel item={selected} pageDispatch={pageDispatch} locked={locked} />}
       {selected?.text && <TextPanel item={selected} pageDispatch={pageDispatch} locked={locked} />}
+      {selected && <FillPanel item={selected} pageDispatch={pageDispatch} locked={locked} />}
       {selected && size && (
         <div className="pp-selected">
           <div className="pp-fields">
@@ -754,10 +768,37 @@ function TextPanel({
         </select>
       </label>
       {isTracedFont(t.font) && (
-        <div className="pp-hint">
-          Traced font: PenPilot writes the text in this font and traces one pen line through the middle of each letter.
-          Arabic joining and dots are kept.
-        </div>
+        <>
+          <fieldset className="pp-segmented">
+            <legend className="pp-sr-only">Letter style</legend>
+            {(
+              [
+                ["line", "One line"],
+                ["filled", "Filled"],
+              ] as const
+            ).map(([style, label]) => (
+              <button
+                key={style}
+                type="button"
+                aria-pressed={(t.style ?? "line") === style}
+                className={(t.style ?? "line") === style ? "pp-on" : ""}
+                disabled={locked}
+                onClick={() => {
+                  set({ style });
+                  if (style === "filled" && !item.fill)
+                    pageDispatch({ type: "fill", id: item.id, fill: { kind: "lines", spacingMm: 0.4 } });
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </fieldset>
+          <div className="pp-hint">
+            {(t.style ?? "line") === "filled"
+              ? "Filled: PenPilot traces each letter's outline and fills it with hatching (see Fill below). Solid-looking letters, like the font on screen."
+              : "One line: PenPilot writes the text in this font and traces one pen line through the middle of each letter. Arabic joining and dots are kept."}
+          </div>
+        </>
       )}
       <NumberField
         label="letter size (mm): height of H, or of ا in Arabic"
@@ -799,6 +840,80 @@ function TextPanel({
         ))}
       </fieldset>
       {t.error && <div className="pp-photo-status pp-photo-status--error">{t.error}</div>}
+    </div>
+  );
+}
+
+// ---- Fill ----------------------------------------------------------------------------
+
+function FillPanel({
+  item,
+  pageDispatch,
+  locked,
+}: {
+  item: PageItem;
+  pageDispatch: (a: PageAction) => void;
+  locked: boolean;
+}) {
+  const { shapes } = itemDrawnPaths(item);
+  const fill = item.fill;
+  const kind: FillKind = fill?.kind ?? "none";
+  const set = (f: Partial<FillInfo> | null) => pageDispatch({ type: "fill", id: item.id, fill: f });
+  if (shapes === 0) {
+    return item.fill ? <div className="pp-hint">No closed shapes to fill in this drawing.</div> : null;
+  }
+  return (
+    <div className="pp-photo-panel pp-fill-panel">
+      <label className="pp-field">
+        fill ({shapes.toLocaleString()} closed {shapes === 1 ? "shape" : "shapes"})
+        <select
+          value={kind}
+          disabled={locked}
+          onChange={(e) => {
+            const k = e.target.value as FillKind;
+            set(k === "none" ? null : { kind: k });
+          }}
+        >
+          <option value="none">No fill (outlines only)</option>
+          <option value="lines">Hatch: lines</option>
+          <option value="cross">Hatch: cross-hatch</option>
+          <option value="concentric">Concentric (shrinking outlines)</option>
+        </select>
+      </label>
+      {fill && kind !== "none" && (
+        <>
+          <SliderField
+            label="Line spacing (mm)"
+            value={fill.spacingMm}
+            min={0.2}
+            max={5}
+            step={0.05}
+            disabled={locked}
+            onChange={(v) => set({ spacingMm: v })}
+          />
+          {kind !== "concentric" && (
+            <SliderField
+              label="Angle (°)"
+              value={fill.angle}
+              min={0}
+              max={180}
+              step={5}
+              disabled={locked}
+              onChange={(v) => set({ angle: v })}
+            />
+          )}
+          <label className="pp-checkbox">
+            <input
+              type="checkbox"
+              checked={fill.outline}
+              disabled={locked}
+              onChange={(e) => set({ outline: e.target.checked })}
+            />
+            Draw the outlines too
+          </label>
+          <div className="pp-hint">For a solid look, set the spacing to about your pen's line width.</div>
+        </>
+      )}
     </div>
   );
 }

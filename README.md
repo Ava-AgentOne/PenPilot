@@ -10,7 +10,14 @@ is in [`PLAN.md`](PLAN.md).
 
 
 
-## What works now (build steps 1–4)
+## What works now (build steps 1–5)
+
+**Hatch fill (step 5):**
+- Any drawing with **closed shapes** (a traced outline, an SVG of filled shapes, letters) gets a **fill** choice: **Hatch: lines**, **Hatch: cross-hatch** or **Concentric** (shrinking outlines). Shapes look solid on paper.
+- **Line spacing** (set it to about your pen's line width for a solid look), **angle**, and **Draw the outlines too**. Holes (the inside of an "o") stay empty.
+- The hatching **zig-zags** through each shape with the pen down, instead of lifting at every line. It's faster and leaves no dots at the line ends.
+- **Filled letters:** the traced fonts (Arabic and handwriting) have a **One line / Filled** switch. Filled traces each letter's outline and hatches it, so the text looks like the font on screen.
+- The fill-shapes warning on an SVG now also offers **Fill them with hatching**.
 
 **Single-line text (step 4):**
 - **Add text** in **41 single-stroke fonts** (Windell Oskay's Hershey and EMS collection, 22 of them handwriting and script): each letter is one pen stroke, with no hollow outlines.

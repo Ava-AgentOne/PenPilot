@@ -65,6 +65,11 @@ export interface TextInfo {
   /** Distance between lines, as a multiple of the font's normal line height. */
   lineSpacing: number;
   align: Align;
+  /**
+   * Traced fonts only: "line" = one pen line through each letter; "filled" =
+   * the letters' outlines (filled with the item's hatch fill).
+   */
+  style?: "line" | "filled";
   /** Font couldn't be loaded, etc. */
   error?: string;
 }
@@ -281,4 +286,4 @@ export function missingCharacters(font: SingleLineFont, text: string): string[] 
 }
 
 export const textJobKey = (t: TextInfo) =>
-  JSON.stringify([t.text, t.font, t.sizeMm, t.letterSpacing, t.lineSpacing, t.align]);
+  JSON.stringify([t.text, t.font, t.sizeMm, t.letterSpacing, t.lineSpacing, t.align, t.style ?? "line"]);

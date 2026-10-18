@@ -25,7 +25,7 @@ function traced(t: TextInfo, onJob: (job: PhotoJob) => void): Promise<Result> {
     ({ image, mmPerPx, traceConfig }) =>
       new Promise<Result>((resolve, reject) => {
         onJob(
-          runPhotoStyle("trace-centre", traceConfig, image, {
+          runPhotoStyle(t.style === "filled" ? "trace-outline" : "trace-centre", traceConfig, image, {
             onControls() {},
             onMessage() {},
             onError: (text) => reject(new Error(text)),

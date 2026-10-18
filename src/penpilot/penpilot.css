@@ -374,3 +374,5 @@ button.button-link.pp-forget-size { margin: -0.25rem 0 0.5rem; }
   resize: vertical;
 }
 .pp-text-panel .pp-segmented { margin-bottom: 0.4rem; }
+
+.pp-fill-panel { margin-top: 0.25rem; }

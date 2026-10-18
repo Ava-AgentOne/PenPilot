@@ -955,7 +955,7 @@ function Root() {
   const { isPlanning, plan, setPlan } = usePlan(state.paths, plannerOptions);
   const [isLoadingFile, setIsLoadingFile] = useState(false);
 
-  // Replan when the drawings' lines or placement change -- not when one is
+  // Replan when the drawings' lines, fill or placement change -- not when one is
   // merely selected or a photo reports progress -- once edits settle.
   const pageItems = page.items;
   usePhotoRenderer(pageItems, pageDispatch);
@@ -964,7 +964,7 @@ function Root() {
   // biome-ignore lint/correctness/useExhaustiveDependencies(setPlan): React setters are stable
   useEffect(() => {
     const geometry: unknown[] = [layout.placement, pageSize];
-    for (const it of pageItems) geometry.push(it.id, it.name, it.paths, it.x, it.y, it.scale, it.rotation);
+    for (const it of pageItems) geometry.push(it.id, it.name, it.paths, it.fill, it.x, it.y, it.scale, it.rotation);
     const last = lastGeometry.current;
     if (last && last.length === geometry.length && last.every((v, i) => v === geometry[i])) return;
     const timer = setTimeout(() => {
