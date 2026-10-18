@@ -23,6 +23,7 @@ import {
   type PageAction,
   type PageItem,
   type Placement,
+  resizeShape,
   rotateItem,
   type Size,
   setPhotoDetail,
@@ -32,6 +33,7 @@ import {
 import { type Pen, penName } from "./pens.js";
 import { PenSwatch } from "./pens-panel.js";
 import { drawnLines } from "./plot-job.js";
+import { MAX_SHAPE_LINES } from "./shapes.js";
 import type { FillInfo, FillKind } from "./hatch.js";
 import { MAX_DETAIL, MIN_DETAIL, PHOTO_STYLES, type PhotoConfig, TRACE_STYLES } from "./photo.js";
 import { type Align, SINGLE_LINE_FONTS, type TextInfo } from "./text.js";
@@ -238,6 +240,9 @@ export function PageCanvas({
       if (Math.abs(x + size.x / 2 - pageSize.x / 2) < SNAP_MM) x = pageSize.x / 2 - size.x / 2;
       if (Math.abs(y + size.y / 2 - pageSize.y / 2) < SNAP_MM) y = pageSize.y / 2 - size.y / 2;
       setDraft({ ...it, x, y });
+    } else if (it.shape) {
+      // Shapes stretch freely: width and height change separately.
+      setDraft(resizeShape(it, Math.max(MIN_SIZE_MM, size.x + dx), Math.max(MIN_SIZE_MM, size.y + dy)));
     } else {
       // Keep the proportions; follow whichever direction moved more.
       const k = Math.max((size.x + dx) / size.x, (size.y + dy) / size.y);
@@ -356,6 +361,7 @@ type PanelProps = {
   pens: Pen[];
   penOf: (item: PageItem) => Pen;
   onAddText: () => void;
+  onAddShape: (kind: "rect" | "ellipse" | "border") => void;
   /** Replace an SVG made of filled shapes by its centre-line trace. */
   onTraceSvg: (item: PageItem) => void;
   page: Page;
@@ -428,6 +434,7 @@ export function DrawingsPanel({
   onAddFiles,
   onTraceSvg,
   onAddText,
+  onAddShape,
   pens,
   penOf,
 }: PanelProps) {
@@ -439,7 +446,9 @@ export function DrawingsPanel({
 
   const resizeTo = (axis: "x" | "y", mm: number) => {
     if (!selected || !size || mm < MIN_SIZE_MM) return;
-    update({ ...selected, scale: selected.scale * (mm / size[axis]) });
+    // Shapes change width and height separately; drawings keep their proportions.
+    if (selected.shape) update(resizeShape(selected, axis === "x" ? mm : size.x, axis === "y" ? mm : size.y));
+    else update({ ...selected, scale: selected.scale * (mm / size[axis]) });
   };
 
   return (
@@ -461,6 +470,25 @@ export function DrawingsPanel({
       <button type="button" disabled={locked} onClick={onAddText}>
         Add text
       </button>
+      <div className="pp-add-shape">
+        <span className="pp-add-shape-label">Add shape</span>
+        <div className="pp-buttons pp-buttons--3">
+          <button type="button" disabled={locked} onClick={() => onAddShape("rect")}>
+            Rectangle
+          </button>
+          <button type="button" disabled={locked} onClick={() => onAddShape("ellipse")}>
+            Circle
+          </button>
+          <button
+            type="button"
+            disabled={locked}
+            onClick={() => onAddShape("border")}
+            title="A double line round the page, just inside the margins"
+          >
+            Border
+          </button>
+        </div>
+      </div>
       {page.items.length > 0 && (
         <ul className="pp-item-list">
           {page.items.map((it) => (
@@ -537,6 +565,7 @@ export function DrawingsPanel({
           </button>
         </div>
       )}
+      {selected?.shape && <ShapePanel item={selected} pageDispatch={pageDispatch} locked={locked} />}
       {selected?.photo && <PhotoPanel item={selected} pageDispatch={pageDispatch} locked={locked} />}
       {selected?.text && <TextPanel item={selected} pageDispatch={pageDispatch} locked={locked} />}
       {selected && <FillPanel item={selected} pageDispatch={pageDispatch} locked={locked} />}
@@ -920,6 +949,56 @@ function TextPanel({
 }
 
 // ---- Fill ----------------------------------------------------------------------------
+
+// ---- Shapes -------------------------------------------------------------------------
+
+function ShapePanel({
+  item,
+  pageDispatch,
+  locked,
+}: {
+  item: PageItem;
+  pageDispatch: (a: PageAction) => void;
+  locked: boolean;
+}) {
+  const shape = item.shape;
+  if (!shape) return null;
+  const set = (change: Partial<NonNullable<PageItem["shape"]>>) =>
+    pageDispatch({ type: "shape", id: item.id, shape: change });
+  return (
+    <div className="pp-photo-panel pp-shape-panel">
+      <div className="pp-fields">
+        {shape.kind === "rect" && (
+          <NumberField
+            label="corner radius (mm)"
+            value={shape.radius}
+            disabled={locked}
+            onChange={(v) => set({ radius: Math.max(0, v) })}
+          />
+        )}
+        <label className="pp-field">
+          lines
+          <select value={shape.lines} disabled={locked} onChange={(e) => set({ lines: Number(e.target.value) })}>
+            {Array.from({ length: MAX_SHAPE_LINES }, (_, i) => i + 1).map((n) => (
+              <option key={n} value={n}>
+                {n === 1 ? "1 line" : `${n} lines`}
+              </option>
+            ))}
+          </select>
+        </label>
+        {shape.lines > 1 && (
+          <NumberField
+            label="gap between lines (mm)"
+            value={shape.gap}
+            disabled={locked}
+            onChange={(v) => set({ gap: Math.max(0.1, v) })}
+          />
+        )}
+      </div>
+      <div className="pp-hint">Drag the corner dot to stretch it. Use fill below to hatch it in.</div>
+    </div>
+  );
+}
 
 function FillPanel({
   item,

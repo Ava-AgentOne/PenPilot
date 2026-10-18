@@ -10,7 +10,13 @@ is in [`PLAN.md`](PLAN.md).
 
 
 
-## What works now (build steps 1–5, and the pens half of step 6)
+## What works now (build steps 1–6)
+
+**Projects and shapes (step 6, second half):**
+- **Save / Save as… / Open… / New** at the top of the panel (⌘S / Ctrl+S saves, ⌘O / Ctrl+O opens). A **.penpilot** project keeps the whole page: every drawing with its lines, place, size, fill and pen, photos with their pictures and style, text with its settings, the paper and margins, and the pens used. Opening it brings the page back exactly, without redrawing (so a random photo style looks the same). Pens the computer doesn't have yet come with the project. You can also drag a .penpilot file onto the window.
+- The project's name shows under the buttons, with **changes not saved** when you've edited since. Closing PenPilot with unsaved changes asks first.
+- **Export SVG…** saves the page's lines (hatching included) as an SVG in mm: one layer per pen, in plotting order, in the pen's colour and line width. Inkscape shows the layers by pen name.
+- **Add shape: Rectangle, Circle, Border.** A border is a double line just inside the page margins. Shapes stretch freely (the corner dot, or width and height separately). Each has **corner radius** (rectangles), **lines** (1 to 10, each inside the last) and **gap between lines**. Like any closed shape, they can be hatch-filled.
 
 **Pens (step 6, first half):**
 - **Your pens, saved:** each pen has a name, an on-screen colour, its own **up and down heights**, **drawing speed** and **line width**. Pick one from the list, or press **New pen**. Your old pen settings became the first pen, "My pen".

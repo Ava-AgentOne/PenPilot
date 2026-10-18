@@ -28,6 +28,11 @@ export function usePhotoRenderer(items: PageItem[], dispatch: (a: PageAction) =>
       const key = photoJobKey(photo);
       const old = entries.current.get(item.id);
       if (old?.key === key) continue;
+      if (!old && item.restored) {
+        // Opened from a project with its lines: keep them (some styles are random).
+        entries.current.set(item.id, { key });
+        continue;
+      }
       old?.job?.cancel();
       clearTimeout(old?.timer);
 

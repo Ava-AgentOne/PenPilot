@@ -47,8 +47,8 @@ export function firstPen(options: PlanOptions): Pen {
 const clamp = (v: unknown, lo: number, hi: number, dflt: number) =>
   typeof v === "number" && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : dflt;
 
-/** A pen read from storage, with any missing or odd values made safe. */
-function cleanPen(p: Partial<Pen>, fallback: Pen): Pen {
+/** A pen read from storage (or a project file), with any missing or odd values made safe. */
+export function cleanPen(p: Partial<Pen>, fallback: Pen): Pen {
   return {
     id: typeof p.id === "string" && p.id ? p.id : newId(),
     name: typeof p.name === "string" && p.name.trim() ? p.name : fallback.name,

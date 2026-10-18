@@ -32,7 +32,9 @@ import {
   machineReach,
   newItem,
   newPhotoItem,
+  newShapeItem,
   newTextItem,
+  type PageAction,
   type PageItem,
   itemSize,
   pageReducer,
@@ -43,7 +45,10 @@ import { isImageFile, svgToBitmap } from "./penpilot/photo.js";
 import { usePhotoRenderer } from "./penpilot/photo-renderer.js";
 import { usePenText } from "./penpilot/text-renderer.js";
 import { PlotterCheck } from "./penpilot/plotter-check.js";
+import { downloadText, ProjectBar } from "./penpilot/project-bar.js";
+import { fileBaseName, PROJECT_EXTENSION, pageToSvg, projectFromText, projectToText } from "./penpilot/project.js";
 import {
+  cleanPen,
   loadPens,
   loadSelectedPenId,
   type Pen,
@@ -832,6 +837,21 @@ function PortSelector({ driver, setDriver, hardware }: PortSelectorProps) {
   );
 }
 
+/** Page actions that change the page itself (so it has unsaved changes). */
+const PAGE_EDITS = new Set<PageAction["type"]>([
+  "add",
+  "update",
+  "nudge",
+  "remove",
+  "replace",
+  "split",
+  "pen",
+  "fill",
+  "shape",
+  "textSettings",
+  "photoSettings",
+]);
+
 function Root() {
   const [driver, setDriver] = useState<BaseDriver | null>(null);
   const [isDriverConnected, setIsDriverConnected] = useState(false);
@@ -882,6 +902,16 @@ function Root() {
   };
   const penOf = React.useCallback((it: PageItem) => penById(pens, it.penId), [pens]);
   const withCurrentPen = (it: PageItem): PageItem => ({ ...it, penId });
+
+  // PenPilot projects: the file this page was opened from or saved to, and
+  // whether the page has changed since. Only the user's own edits count, not
+  // photos and text finishing drawing.
+  const [projectFile, setProjectFile] = useState<{ name: string; path?: string } | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const editPage = React.useCallback((a: PageAction) => {
+    if (PAGE_EDITS.has(a.type)) setDirty(true);
+    pageDispatch(a);
+  }, []);
 
   // The page's lines, one group per pen; each is planned with its pen's settings.
   const [segments, setSegments] = useState<{ penId: string; paths: Path[] }[] | null>(null);
@@ -1151,9 +1181,9 @@ function Root() {
         return;
       }
       setFileMessage(null);
-      pageDispatch({ type: "add", items: [item] });
+      editPage({ type: "add", items: [item] });
     },
-    [pageSize, marginMm, penId],
+    [pageSize, marginMm, penId, editPage],
   );
 
   // An SVG of filled shapes -> the same drawing as a centre-line trace, same size and place.
@@ -1176,17 +1206,22 @@ function Root() {
         };
         const after = itemSize(next);
         next = { ...next, x: item.x + (before.x - after.x) / 2, y: item.y + (before.y - after.y) / 2 };
-        pageDispatch({ type: "replace", id: item.id, item: next });
+        editPage({ type: "replace", id: item.id, item: next });
       } catch (e) {
         console.error(e);
         setFileMessage(`PenPilot couldn't trace “${item.name}”.`);
       }
     },
-    [pageSize, marginMm],
+    [pageSize, marginMm, editPage],
   );
 
   const handleFile = React.useCallback(
     (file: File) => {
+      if (new RegExp(`\\.${PROJECT_EXTENSION}$`, "i").test(file.name)) {
+        // A PenPilot project: opens in place of the page.
+        openProjectFileRef.current(file);
+        return;
+      }
       if (isImageFile(file)) {
         // A photo: becomes pen lines through a Plotterfun style (penpilot/photo.ts).
         setIsLoadingFile(true);
@@ -1194,7 +1229,7 @@ function Root() {
           .then((bitmap) => {
             const url = URL.createObjectURL(file);
             const photo = { ...newPhotoItem(file.name, bitmap, url, pageSize, marginMm), penId };
-            pageDispatch({ type: "add", items: [photo] });
+            editPage({ type: "add", items: [photo] });
             setFileMessage(null);
           })
           .catch(() => setFileMessage(`PenPilot couldn't open the picture “${file.name}”.`))
@@ -1221,7 +1256,7 @@ function Root() {
       };
       reader.readAsText(file);
     },
-    [loadSvgText, pageSize, marginMm, penId],
+    [loadSvgText, pageSize, marginMm, penId, editPage],
   );
 
   useEffect(() => {
@@ -1260,6 +1295,148 @@ function Root() {
   const currentMotionStartedTime = useMemo(() => {
     return new Date();
   }, [state.progress, state.paused]);
+
+  // ---- Projects: save, open, export ----
+  const appVersion = useRef("dev");
+  useEffect(() => {
+    desktop
+      ?.info()
+      .then((i) => {
+        appVersion.current = i.version;
+      })
+      .catch(() => {});
+  }, []);
+  const askToDiscard = () =>
+    !dirty || page.items.length === 0 || window.confirm("Your page has changes that aren't saved. Carry on anyway?");
+  const baseName = () => fileBaseName(projectFile?.name ?? page.items[0]?.name ?? "My page");
+
+  const saveProject = async (as: boolean) => {
+    if (page.items.length === 0) return;
+    try {
+      const usedPens = pens.filter((p) => page.items.some((it) => penOf(it).id === p.id));
+      const text = await projectToText(
+        { paper: { width: pageSize.x, height: pageSize.y, margin: marginMm }, pens: usedPens, items: page.items },
+        appVersion.current,
+      );
+      const name = `${baseName()}.${PROJECT_EXTENSION}`;
+      if (desktop?.saveFileAs) {
+        let r = !as && projectFile?.path && desktop.saveFile ? await desktop.saveFile(projectFile.path, text) : null;
+        if (!r?.ok) r = await desktop.saveFileAs("project", name, text);
+        if (!r.ok) {
+          if (!r.canceled) setFileMessage(r.message ?? "PenPilot couldn't save the project.");
+          return;
+        }
+        setProjectFile({ name: r.name ?? name, path: r.path });
+      } else {
+        downloadText(name, text, "application/json");
+        setProjectFile({ name });
+      }
+      setDirty(false);
+    } catch (e) {
+      setFileMessage(`PenPilot couldn't save the project. ${(e as Error).message}`);
+    }
+  };
+
+  const openProjectText = async (text: string, file: { name: string; path?: string }) => {
+    try {
+      const project = await projectFromText(text);
+      // Pens this computer doesn't have yet come with the project.
+      const known = new Set(pens.map((p) => p.id));
+      const extra = project.pens.filter((p) => !known.has(p.id)).map((p) => cleanPen(p, pens[0]));
+      if (extra.length > 0) setPens([...pens, ...extra]);
+      const paper = new PaperSize({ x: project.paper.width, y: project.paper.height });
+      dispatch({ type: "SET_PLAN_OPTION", value: { paperSize: paper, marginMm: project.paper.margin } });
+      pageDispatch({ type: "load", items: project.items });
+      setProjectFile(file);
+      setDirty(false);
+      setStopped(null);
+      setFileMessage(null);
+    } catch (e) {
+      setFileMessage(`PenPilot couldn't open “${file.name}”. ${(e as Error).message}`);
+    }
+  };
+  const openProjectFile = (file: File) => {
+    if (locked || !askToDiscard()) return;
+    file
+      .text()
+      .then((text) => openProjectText(text, { name: file.name }))
+      .catch(() => setFileMessage(`PenPilot couldn't open “${file.name}”.`));
+  };
+  const openProjectFileRef = useRef(openProjectFile);
+  openProjectFileRef.current = openProjectFile;
+  const projectInput = useRef<HTMLInputElement>(null);
+  const openProject = async () => {
+    if (locked || !askToDiscard()) return;
+    if (!desktop?.openProject) {
+      projectInput.current?.click(); // browser: pick a file
+      return;
+    }
+    try {
+      const r = await desktop.openProject();
+      if (r.ok && r.text !== undefined) await openProjectText(r.text, { name: r.name ?? "project", path: r.path });
+      else if (!r.ok && !r.canceled) setFileMessage(r.message ?? "PenPilot couldn't open the project.");
+    } catch (e) {
+      setFileMessage(`PenPilot couldn't open the project. ${(e as Error).message}`);
+    }
+  };
+
+  const exportSvg = async () => {
+    if (page.items.length === 0) return;
+    const svg = pageToSvg(page.items, pageSize, pens, penOf);
+    const name = `${baseName()}.svg`;
+    try {
+      if (desktop?.saveFileAs) {
+        const r = await desktop.saveFileAs("svg", name, svg);
+        if (!r.ok && !r.canceled) setFileMessage(r.message ?? "PenPilot couldn't export the SVG.");
+      } else downloadText(name, svg, "image/svg+xml");
+    } catch (e) {
+      setFileMessage(`PenPilot couldn't export the SVG. ${(e as Error).message}`);
+    }
+  };
+
+  const newPage = () => {
+    if (locked || !askToDiscard()) return;
+    pageDispatch({ type: "clear" });
+    setProjectFile(null);
+    setDirty(false);
+    setStopped(null);
+  };
+
+  // Keyboard: Cmd/Ctrl+S saves (with Shift: save as), Cmd/Ctrl+O opens.
+  const shortcuts = useRef({ save: saveProject, open: openProject });
+  shortcuts.current = { save: saveProject, open: openProject };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
+      const k = e.key.toLowerCase();
+      if (k === "s") {
+        e.preventDefault();
+        void shortcuts.current.save(e.shiftKey);
+      } else if (k === "o" && !e.shiftKey) {
+        e.preventDefault();
+        void shortcuts.current.open();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  // Closing with unsaved changes: the desktop app asks first (main.cjs).
+  const unsaved = dirty && page.items.length > 0;
+  useEffect(() => {
+    if (!unsaved) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [unsaved]);
+  useEffect(() => {
+    document.title = projectFile
+      ? `${fileBaseName(projectFile.name)}${unsaved ? " (not saved)" : ""} – PenPilot`
+      : "PenPilot";
+  }, [projectFile, unsaved]);
 
   const previewArea = useRef<HTMLDivElement>(null);
   const previewSize = useComponentSize(previewArea);
@@ -1315,6 +1492,28 @@ function Root() {
             <span className="teal">Pilot</span>
           </div>
           <div className="pp-subtitle">based on saxi</div>
+          <ProjectBar
+            fileName={projectFile?.name ?? null}
+            dirty={unsaved}
+            hasItems={page.items.length > 0}
+            locked={locked}
+            onNew={newPage}
+            onOpen={() => void openProject()}
+            onSave={() => void saveProject(false)}
+            onSaveAs={() => void saveProject(true)}
+            onExportSvg={() => void exportSvg()}
+          />
+          <input
+            ref={projectInput}
+            type="file"
+            accept=".penpilot"
+            style={{ display: "none" }}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              e.target.value = "";
+              if (f) f.text().then((text) => openProjectText(text, { name: f.name }));
+            }}
+          />
           {!IS_WEB && (
             <div className={state.connected && state.deviceInfo?.path ? "info" : "info-disconnected"}>
               {state.connected
@@ -1380,7 +1579,7 @@ function Root() {
           <div className="section-body">
             <DrawingsPanel
               page={page}
-              pageDispatch={pageDispatch}
+              pageDispatch={editPage}
               pageSize={pageSize}
               marginMm={marginMm}
               drawable={layout.drawableOnPage}
@@ -1389,7 +1588,10 @@ function Root() {
               penOf={penOf}
               onAddFiles={addFiles}
               onTraceSvg={traceSvgItem}
-              onAddText={() => pageDispatch({ type: "add", items: [withCurrentPen(newTextItem(pageSize))] })}
+              onAddText={() => editPage({ type: "add", items: [withCurrentPen(newTextItem(pageSize))] })}
+              onAddShape={(kind) =>
+                editPage({ type: "add", items: [withCurrentPen(newShapeItem(kind, pageSize, marginMm))] })
+              }
             />
             <LayerSelector state={state} />
           </div>
@@ -1459,7 +1661,7 @@ function Root() {
         <div className="preview-area" ref={previewArea}>
           <PageCanvas
             page={page}
-            pageDispatch={pageDispatch}
+            pageDispatch={editPage}
             pageSize={pageSize}
             marginMm={marginMm}
             placement={layout.placement}

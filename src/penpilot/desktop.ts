@@ -11,6 +11,15 @@ export interface WindowsDeviceStatus {
   devices?: { status: string; class: string; name: string }[];
 }
 
+export interface FileResult {
+  ok: boolean;
+  canceled?: boolean;
+  message?: string;
+  /** Where it was saved or read from, and the file's name. */
+  path?: string;
+  name?: string;
+}
+
 export interface ActionResult {
   ok: boolean;
   message?: string;
@@ -31,6 +40,12 @@ export interface PenPilotDesktop {
   openExternal(url: string): Promise<void>;
   /** Bounce the Dock icon / flash the taskbar button if PenPilot isn't in front. */
   attention?(): Promise<void>;
+  /** Save `text` to a file the user picks (a Save dialog). */
+  saveFileAs?(kind: "project" | "svg", suggestedName: string, text: string): Promise<FileResult>;
+  /** Save again to a file picked earlier in this session (no dialog). */
+  saveFile?(path: string, text: string): Promise<FileResult>;
+  /** Pick and read a PenPilot project (an Open dialog). */
+  openProject?(): Promise<FileResult & { text?: string }>;
   /** macOS only: talk to the plotter directly instead of via Web Serial. */
   nativeSerial?: NativeSerial;
 }

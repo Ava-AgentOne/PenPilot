@@ -22,6 +22,7 @@ import {
   rasterSize,
 } from "./photo.js";
 import { closedRings, defaultFill, type FillInfo, fillShapes } from "./hatch.js";
+import { SHAPE_NAMES, type ShapeInfo, shapePaths } from "./shapes.js";
 import { defaultText, type TextInfo } from "./text.js";
 
 export const MM_PER_SOURCE_UNIT = 25.4 / 96;
@@ -61,6 +62,10 @@ export interface PageItem {
   fill?: FillInfo;
   /** The pen that draws it (see pens.ts); missing or unknown = the first pen. */
   penId?: string;
+  /** Set for simple shapes; `paths` follow from it (mm, at scale 1). See withShape. */
+  shape?: ShapeInfo;
+  /** Opened from a project: its saved lines are current, so photos and text aren't redrawn on opening. */
+  restored?: boolean;
 }
 
 // ---- What actually gets drawn ----------------------------------------------------
@@ -457,6 +462,59 @@ export function newTextItem(pageSize: Size): PageItem {
   };
 }
 
+const MIN_SHAPE_MM = 3;
+
+/**
+ * A shape item brought up to date: its lines and box from its shape, with
+ * `change` applied. Any scale (e.g. from Fit page) goes into the shape's size,
+ * so the item is back at scale 1 and corners and gaps keep their size in mm.
+ */
+export function withShape(item: PageItem, change: Partial<ShapeInfo> = {}): PageItem {
+  if (!item.shape) return item;
+  const k = item.scale;
+  const shape = { ...item.shape, w: item.shape.w * k, h: item.shape.h * k, ...change };
+  shape.w = Math.max(MIN_SHAPE_MM, Math.round(shape.w * 1000) / 1000);
+  shape.h = Math.max(MIN_SHAPE_MM, Math.round(shape.h * 1000) / 1000);
+  return {
+    ...item,
+    shape,
+    scale: 1,
+    paths: shapePaths(shape),
+    bounds: { minX: 0, minY: 0, maxX: shape.w, maxY: shape.h },
+  };
+}
+
+/** A shape's new size on the page (mm), allowing for a quarter turn. */
+export function resizeShape(item: PageItem, pageW: number, pageH: number): PageItem {
+  const turned = item.rotation === 90 || item.rotation === 270;
+  return withShape(item, turned ? { w: pageH, h: pageW } : { w: pageW, h: pageH });
+}
+
+/**
+ * A new shape: a rectangle or circle in the middle of the page, or a border
+ * round the page just inside the margins.
+ */
+export function newShapeItem(kind: "rect" | "ellipse" | "border", pageSize: Size, marginMm: number): PageItem {
+  const border = kind === "border";
+  const w = border ? Math.max(10, pageSize.x - 2 * marginMm) : kind === "rect" ? 60 : 50;
+  const h = border ? Math.max(10, pageSize.y - 2 * marginMm) : kind === "rect" ? 40 : 50;
+  const item: PageItem = withShape({
+    id: `item-${Date.now()}-${nextId++}`,
+    name: SHAPE_NAMES[kind],
+    paths: [],
+    bounds: { minX: 0, minY: 0, maxX: w, maxY: h },
+    x: border ? marginMm : (pageSize.x - w) / 2,
+    y: border ? marginMm : (pageSize.y - h) / 2,
+    scale: 1,
+    rotation: 0,
+    shape: { kind: border ? "rect" : kind, w, h, radius: 0, lines: border ? 2 : 1, gap: 2 },
+  });
+  return item;
+}
+
+/** A fresh id for an item (e.g. one opened from a project). */
+export const newItemId = () => `item-${Date.now()}-${nextId++}`;
+
 /** Change a photo's detail, keeping its size on the page (and its current lines, rescaled). */
 export function setPhotoDetail(item: PageItem, detail: number): PageItem {
   if (!item.photo) return item;
@@ -485,6 +543,10 @@ export type PageAction =
   | { type: "split"; id: string; items: PageItem[] }
   /** Give an item another pen. */
   | { type: "pen"; id: string; penId: string }
+  /** Change a shape's settings (size, corners, lines). */
+  | { type: "shape"; id: string; shape: Partial<ShapeInfo> }
+  /** Replace the whole page (opening a project). */
+  | { type: "load"; items: PageItem[] }
   /** Set, change or (null) remove an item's hatch fill. */
   | { type: "fill"; id: string; fill: Partial<FillInfo> | null }
   /** Text settings (panel) and laid-out strokes (usePenText). */
@@ -503,8 +565,18 @@ export function pageReducer(page: Page, action: PageAction): Page {
     case "add":
       if (action.items.length === 0) return page;
       return { items: [...page.items, ...action.items], selectedId: action.items[action.items.length - 1].id };
-    case "update":
-      return { ...page, items: page.items.map((it) => (it.id === action.item.id ? action.item : it)) };
+    case "update": {
+      // A shape that was scaled (e.g. Fit page) takes the new size into the shape itself.
+      const item = action.item.shape && action.item.scale !== 1 ? withShape(action.item) : action.item;
+      return { ...page, items: page.items.map((it) => (it.id === item.id ? item : it)) };
+    }
+    case "shape":
+      return {
+        ...page,
+        items: page.items.map((it) => (it.id === action.id && it.shape ? withShape(it, action.shape) : it)),
+      };
+    case "load":
+      return { items: action.items, selectedId: null };
     case "nudge":
       return {
         ...page,

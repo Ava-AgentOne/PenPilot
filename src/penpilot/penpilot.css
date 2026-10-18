@@ -505,3 +505,29 @@ button.pp-small-button {
 .pp-pen-change p { margin: 0 0 0.75rem; font-size: 13px; }
 .pp-pen-change .pp-buttons button { margin-bottom: 0.4rem; }
 .pp-pen-change .pp-pen-change-go button { padding: 0.45rem; font-size: 15px; }
+
+/* ---- Projects and shapes (step 6) ----------------------------------------------- */
+
+.pp-project { margin: 0.4rem 1rem 0.25rem; }
+.pp-project-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 4px;
+}
+.pp-project .pp-project-buttons button { margin: 0; padding: 0.25rem 0.2rem; font-size: 12px; }
+.pp-project .pp-project-buttons .pp-span-2 { grid-column: span 2; }
+.pp-project-name {
+  margin-top: 0.3rem;
+  overflow: hidden;
+  font-size: 11px;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--purple-dark);
+}
+.pp-project-name--unsaved { color: #b0802b; }
+
+.pp-add-shape { margin: 0 0 0.5rem; }
+.pp-add-shape-label { display: block; margin-bottom: 0.15rem; font-size: 11px; color: var(--purple-dark); }
+.pp-buttons.pp-buttons--3 { grid-template-columns: 1fr 1fr 1fr; column-gap: 4px; }
+.pp-shape-panel select { margin-bottom: 0.3rem; }

@@ -69,7 +69,9 @@ export function usePenText(items: PageItem[], dispatch: (a: PageAction) => void)
       if (!t) continue;
       const key = textJobKey(t);
       if (done.current.get(item.id) === key) continue;
+      const opened = item.restored && !done.current.has(item.id); // its saved strokes are current
       done.current.set(item.id, key);
+      if (opened) continue;
       const id = item.id;
       jobs.current.get(id)?.cancel();
       const work = isTracedFont(t.font) ? traced(t, (job) => jobs.current.set(id, job)) : singleStroke(t);

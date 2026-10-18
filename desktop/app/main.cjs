@@ -6,7 +6,7 @@
 // sees a port picker. Everything runs in this one app: no Node.js, Python or
 // saxi server for the user to install.
 
-const { app, BrowserWindow, ipcMain, net, protocol, session, shell } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, net, protocol, session, shell } = require("electron");
 const { execFile, spawn } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -187,6 +187,57 @@ function openFirmwareUpdater() {
   return { ok: true };
 }
 
+// ---- Project files ------------------------------------------------------------
+//
+// The UI never names a file to write itself: it can only save to a file the
+// user picked in a Save or Open dialog during this session.
+
+const FILE_KINDS = {
+  project: { name: "PenPilot project", extensions: ["penpilot"] },
+  svg: { name: "SVG drawing", extensions: ["svg"] },
+};
+const pickedFiles = new Set();
+let lastFolder = null;
+
+function remember(file) {
+  pickedFiles.add(file);
+  lastFolder = path.dirname(file);
+  return { ok: true, path: file, name: path.basename(file) };
+}
+
+async function saveFileAs(win, kind, suggestedName, text) {
+  const filter = FILE_KINDS[kind];
+  if (!filter || typeof text !== "string") return { ok: false, message: "Nothing to save." };
+  const base = path.basename(String(suggestedName || "Untitled")).replace(/[\\/:*?"<>|]/g, "-");
+  const result = await dialog.showSaveDialog(win, {
+    defaultPath: path.join(lastFolder || app.getPath("documents"), base),
+    filters: [filter],
+  });
+  if (result.canceled || !result.filePath) return { ok: false, canceled: true };
+  let file = result.filePath;
+  if (!file.toLowerCase().endsWith(`.${filter.extensions[0]}`)) file += `.${filter.extensions[0]}`;
+  await fs.promises.writeFile(file, text, "utf8");
+  return remember(file);
+}
+
+async function saveFileTo(file, text) {
+  if (!pickedFiles.has(file) || typeof text !== "string") return { ok: false, message: "Choose where to save it first." };
+  await fs.promises.writeFile(file, text, "utf8");
+  return remember(file);
+}
+
+async function openProject(win) {
+  const result = await dialog.showOpenDialog(win, {
+    defaultPath: lastFolder || app.getPath("documents"),
+    filters: [FILE_KINDS.project],
+    properties: ["openFile"],
+  });
+  if (result.canceled || result.filePaths.length === 0) return { ok: false, canceled: true };
+  const file = result.filePaths[0];
+  const text = await fs.promises.readFile(file, "utf8");
+  return { ...remember(file), text };
+}
+
 function setUpIpc() {
   ipcMain.handle("penpilot:info", () => ({
     platform: process.platform,
@@ -210,6 +261,11 @@ function setUpIpc() {
       win.once("focus", () => win.flashFrame(false));
     }
   });
+  ipcMain.handle("penpilot:save-file-as", (event, kind, name, text) =>
+    saveFileAs(BrowserWindow.fromWebContents(event.sender), kind, name, text),
+  );
+  ipcMain.handle("penpilot:save-file", (_event, file, text) => saveFileTo(file, text));
+  ipcMain.handle("penpilot:open-project", (event) => openProject(BrowserWindow.fromWebContents(event.sender)));
   ipcMain.handle("penpilot:open-external", (_event, url) => {
     if (typeof url === "string" && /^https:\/\//.test(url)) shell.openExternal(url);
   });
@@ -239,6 +295,18 @@ function createWindow() {
   });
   win.webContents.on("will-navigate", (event, url) => {
     if (!url.startsWith("app://")) event.preventDefault();
+  });
+  // The page has changes that aren't saved: ask before closing.
+  win.webContents.on("will-prevent-unload", (event) => {
+    const choice = dialog.showMessageBoxSync(win, {
+      type: "question",
+      buttons: ["Close without saving", "Cancel"],
+      defaultId: 1,
+      cancelId: 1,
+      message: "Close PenPilot?",
+      detail: "Your page has changes that aren't saved. Use Save first to keep them.",
+    });
+    if (choice === 0) event.preventDefault(); // close anyway
   });
   win.loadURL("app://penpilot/index.html");
 }
