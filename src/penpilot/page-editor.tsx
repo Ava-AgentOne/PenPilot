@@ -27,6 +27,7 @@ import {
   setPhotoDetail,
 } from "./page.js";
 import { MAX_DETAIL, MIN_DETAIL, PHOTO_STYLES, type PhotoConfig, TRACE_STYLES } from "./photo.js";
+import { type Align, SINGLE_LINE_FONTS, type TextInfo } from "./text.js";
 
 const SNAP_MM = 2;
 const MIN_SIZE_MM = 3;
@@ -331,6 +332,7 @@ export function PageCanvas({
 // ---- Side panel -------------------------------------------------------------------
 
 type PanelProps = {
+  onAddText: () => void;
   /** Replace an SVG made of filled shapes by its centre-line trace. */
   onTraceSvg: (item: PageItem) => void;
   page: Page;
@@ -388,6 +390,7 @@ export function DrawingsPanel({
   locked,
   onAddFiles,
   onTraceSvg,
+  onAddText,
 }: PanelProps) {
   const fileInput = useRef<HTMLInputElement>(null);
   const selected = page.items.find((it) => it.id === page.selectedId) ?? null;
@@ -416,6 +419,9 @@ export function DrawingsPanel({
       <button type="button" disabled={locked} onClick={() => fileInput.current?.click()}>
         Add drawing or photo…
       </button>
+      <button type="button" disabled={locked} onClick={onAddText}>
+        Add text
+      </button>
       {page.items.length > 0 && (
         <ul className="pp-item-list">
           {page.items.map((it) => (
@@ -443,6 +449,7 @@ export function DrawingsPanel({
         </div>
       )}
       {selected?.photo && <PhotoPanel item={selected} pageDispatch={pageDispatch} locked={locked} />}
+      {selected?.text && <TextPanel item={selected} pageDispatch={pageDispatch} locked={locked} />}
       {selected && size && (
         <div className="pp-selected">
           <div className="pp-fields">
@@ -677,5 +684,90 @@ function SliderField({
         onChange={(e) => onChange(Number(e.target.value))}
       />
     </label>
+  );
+}
+
+// ---- Text ---------------------------------------------------------------------------
+
+function TextPanel({
+  item,
+  pageDispatch,
+  locked,
+}: {
+  item: PageItem;
+  pageDispatch: (a: PageAction) => void;
+  locked: boolean;
+}) {
+  const t = item.text as TextInfo;
+  const set = (text: Partial<TextInfo>, scale?: number) =>
+    pageDispatch({ type: "textSettings", id: item.id, text, scale });
+  const aligns: [Align, string][] = [
+    ["left", "Left"],
+    ["centre", "Centre"],
+    ["right", "Right"],
+  ];
+  return (
+    <div className="pp-photo-panel pp-text-panel">
+      <label className="pp-field">
+        text
+        <textarea
+          rows={3}
+          value={t.text}
+          disabled={locked}
+          onChange={(e) => set({ text: e.target.value })}
+          placeholder="Type here. Enter starts a new line."
+        />
+      </label>
+      <label className="pp-field">
+        font (one stroke per letter)
+        <select value={t.font} disabled={locked} onChange={(e) => set({ font: e.target.value })}>
+          {SINGLE_LINE_FONTS.map((f) => (
+            <option key={f.file} value={f.file}>
+              {f.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <NumberField
+        label="letter size: capital height (mm)"
+        value={t.sizeMm * item.scale}
+        disabled={locked}
+        onChange={(v) => v > 0 && set({ sizeMm: v }, 1)}
+      />
+      <SliderField
+        label="Letter spacing"
+        value={t.letterSpacing}
+        min={-0.3}
+        max={1.5}
+        step={0.05}
+        disabled={locked}
+        onChange={(v) => set({ letterSpacing: v })}
+      />
+      <SliderField
+        label="Line spacing"
+        value={t.lineSpacing}
+        min={0.6}
+        max={3}
+        step={0.05}
+        disabled={locked}
+        onChange={(v) => set({ lineSpacing: v })}
+      />
+      <fieldset className="pp-segmented">
+        <legend className="pp-sr-only">Alignment</legend>
+        {aligns.map(([a, label]) => (
+          <button
+            key={a}
+            type="button"
+            aria-pressed={t.align === a}
+            className={t.align === a ? "pp-on" : ""}
+            disabled={locked}
+            onClick={() => set({ align: a })}
+          >
+            {label}
+          </button>
+        ))}
+      </fieldset>
+      {t.error && <div className="pp-photo-status pp-photo-status--error">{t.error}</div>}
+    </div>
   );
 }

@@ -14,6 +14,9 @@ PenPilot is free software under the **GNU Affero General Public License v3.0**
 | [skeleton-tracing](https://github.com/LingDong-/skeleton-tracing): centre-line tracing | Lingdong Huang | MIT |
 | [imagetracerjs](https://github.com/jankovicsandras/imagetracerjs): outline tracing | András Jankovics | Public domain (Unlicense) |
 | [StackBlur](https://github.com/flozz/StackBlur), [Javascript-Voronoi](https://github.com/gorhill/Javascript-Voronoi) (used by Plotterfun) | Fabien Loison, Mario Klingemann; Raymond Hill | MIT |
+| Single-line fonts: Hershey Sans, Serif, Script and Gothic (9 fonts) | Dr. A. V. Hershey (U.S. National Bureau of Standards); data format by James Hurt, Cognition, Inc.; SVG conversion by Windell H. Oskay (Evil Mad Scientist) | Hershey Fonts licence (free use with this acknowledgement; full text in each font file) |
+| Single-line fonts: EMS Readability, Allure, Felix, Elfin, Nixish, Osmotron and Tech (9 fonts) | Sheldon B. Michaels, from the original typeface designers named in each file; SVG by Windell H. Oskay | SIL Open Font License 1.1 |
+| [hersheytext](https://github.com/techninja/hersheytextjs) (source of the font files above) | techninja | MIT |
 | [Work Sans](https://fonts.google.com/specimen/Work+Sans) font (via @fontsource) | Wei Huang | SIL OFL 1.1 |
 | [serialport](https://serialport.io) (macOS plotter connection) | Francis Gulotta and contributors | MIT |
 | [Electron](https://www.electronjs.org) desktop runtime | OpenJS Foundation and contributors | MIT (Chromium's licences are listed in `LICENSES.chromium.html`) |

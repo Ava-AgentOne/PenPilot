@@ -32,6 +32,7 @@ import {
   machineReach,
   newItem,
   newPhotoItem,
+  newTextItem,
   type PageItem,
   itemSize,
   pageReducer,
@@ -40,6 +41,7 @@ import {
 import { DrawingsPanel, OrientationNotes, PageCanvas } from "./penpilot/page-editor.js";
 import { isImageFile, svgToBitmap } from "./penpilot/photo.js";
 import { usePhotoRenderer } from "./penpilot/photo-renderer.js";
+import { usePenText } from "./penpilot/text-renderer.js";
 import { PlotterCheck } from "./penpilot/plotter-check.js";
 
 const defaultVisualizationOptions = {
@@ -957,6 +959,7 @@ function Root() {
   // merely selected or a photo reports progress -- once edits settle.
   const pageItems = page.items;
   usePhotoRenderer(pageItems, pageDispatch);
+  usePenText(pageItems, pageDispatch);
   const lastGeometry = useRef<unknown[] | null>(null);
   // biome-ignore lint/correctness/useExhaustiveDependencies(setPlan): React setters are stable
   useEffect(() => {
@@ -1262,6 +1265,7 @@ function Root() {
               locked={locked}
               onAddFiles={addFiles}
               onTraceSvg={traceSvgItem}
+              onAddText={() => pageDispatch({ type: "add", items: [newTextItem(pageSize)] })}
             />
             <LayerSelector state={state} />
           </div>

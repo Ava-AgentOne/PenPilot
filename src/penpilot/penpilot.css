@@ -364,3 +364,13 @@ button.button-link.pp-forget-size { margin: -0.25rem 0 0.5rem; }
 .pp-fill-only-button { margin: 0.4rem 0 0; font-size: 12px; }
 
 .pp-fill-only { margin-top: 0.25rem; }
+
+/* ---- Text ------------------------------------------------------------------- */
+
+.pp-text-panel textarea {
+  min-height: 3.5rem;
+  margin-bottom: 0.4rem;
+  font-size: 13px;
+  resize: vertical;
+}
+.pp-text-panel .pp-segmented { margin-bottom: 0.4rem; }

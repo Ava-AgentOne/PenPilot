@@ -21,6 +21,7 @@ import {
   type PhotoInfo,
   rasterSize,
 } from "./photo.js";
+import { defaultText, type TextInfo } from "./text.js";
 
 export const MM_PER_SOURCE_UNIT = 25.4 / 96;
 
@@ -53,6 +54,8 @@ export interface PageItem {
   svgText?: string;
   /** SVG made only of filled shapes (no strokes): a pen would draw every line twice. */
   fillOnly?: boolean;
+  /** Set for text: what to write and how; `paths` come from usePenText. */
+  text?: TextInfo;
 }
 
 export interface Page {
@@ -339,6 +342,24 @@ export function newPhotoItem(
   return fitItem(item, pageSize, marginMm);
 }
 
+/** A text item ("Hello"), centred on the page; its strokes arrive from usePenText. */
+export function newTextItem(pageSize: Size): PageItem {
+  const text = defaultText();
+  const w = text.sizeMm * 3;
+  const h = text.sizeMm * 2;
+  return {
+    id: `item-${Date.now()}-${nextId++}`,
+    name: "Text",
+    paths: [],
+    bounds: { minX: 0, minY: 0, maxX: w, maxY: h },
+    x: (pageSize.x - w) / 2,
+    y: (pageSize.y - h) / 2,
+    scale: 1,
+    rotation: 0,
+    text,
+  };
+}
+
 /** Change a photo's detail, keeping its size on the page (and its current lines, rescaled). */
 export function setPhotoDetail(item: PageItem, detail: number): PageItem {
   if (!item.photo) return item;
@@ -363,6 +384,9 @@ export type PageAction =
   | { type: "remove"; id: string }
   /** Swap one item for another in the same place in the list (e.g. SVG -> its trace). */
   | { type: "replace"; id: string; item: PageItem }
+  /** Text settings (panel) and laid-out strokes (usePenText). */
+  | { type: "textSettings"; id: string; text: Partial<TextInfo>; scale?: number }
+  | { type: "textResult"; id: string; paths: Path[]; width: number; height: number; error?: string }
   /** Photo results and settings (see usePhotoRenderer / the photo panel). */
   | { type: "photoResult"; id: string; paths: Path[] }
   | { type: "photoStatus"; id: string; status: PhotoInfo["status"]; message: string }
@@ -387,6 +411,31 @@ export function pageReducer(page: Page, action: PageAction): Page {
       return {
         items: page.items.map((it) => (it.id === action.id ? action.item : it)),
         selectedId: page.selectedId === action.id ? action.item.id : page.selectedId,
+      };
+    case "textSettings":
+      return {
+        ...page,
+        items: page.items.map((it) =>
+          it.id === action.id && it.text
+            ? { ...it, scale: action.scale ?? it.scale, text: { ...it.text, ...action.text } }
+            : it,
+        ),
+      };
+    case "textResult":
+      return {
+        ...page,
+        items: page.items.map((it) => {
+          if (it.id !== action.id || !it.text) return it;
+          const firstLine = it.text.text.split(/\r?\n/)[0].trim();
+          return {
+            ...it,
+            // Keep the top-left corner where it is while the text changes.
+            paths: action.paths,
+            bounds: { minX: 0, minY: 0, maxX: action.width, maxY: action.height },
+            name: firstLine ? `“${firstLine.slice(0, 24)}”` : "Text",
+            text: { ...it.text, error: action.error },
+          };
+        }),
       };
     case "photoResult":
       return withPhoto(page, action.id, (it, photo) => ({

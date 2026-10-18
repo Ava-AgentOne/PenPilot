@@ -10,7 +10,12 @@ is in [`PLAN.md`](PLAN.md).
 
 
 
-## What works now (build steps 1–3)
+## What works now (build steps 1–4)
+
+**Single-line text (step 4):**
+- **Add text**, in **18 single-line fonts** (Hershey and EMS): each letter is one pen stroke, like handwriting, with no hollow outlines. Styles include clean sans, serif, script/handwriting and Gothic.
+- Several lines, **letter size** (capital height in mm, measured from each font's real letters), **letter spacing**, **line spacing**, **left / centre / right**. Move, resize and turn it like any drawing; resizing changes the letter size.
+- Letters a font can't write (e.g. Arabic) are named in a plain message.
 
 **Tracing and photos (step 3):**
 - Add an **image** (JPG, PNG, WebP, GIF) and it is **traced** into vector lines. **Trace: centre lines** is the default: one pen stroke down the middle of every line of a drawing, drawn in a single pass. **Trace: outlines** traces the edges of every dark shape, like a typical "image trace", so the pen draws both sides of each line. Sliders: Threshold, Inverted, Blur, Remove specks, Simplify, Smoothing, Detail.

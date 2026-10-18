@@ -44,6 +44,9 @@ const buildOptions = {
 
 // PenPilot: Plotterfun's photo styles run as plain Web Workers, copied as-is.
 const copyPlotterfun = () => cpSync("vendor/plotterfun", `${buildOptions.outdir}/plotterfun`, { recursive: true });
+// PenPilot: single-line fonts (Hershey + EMS SVG fonts), copied unchanged.
+const copyFonts = () =>
+  cpSync("node_modules/hersheytext/svg_fonts", `${buildOptions.outdir}/fonts-single-line`, { recursive: true });
 
 (async () => {
   try {
@@ -51,6 +54,7 @@ const copyPlotterfun = () => cpSync("vendor/plotterfun", `${buildOptions.outdir}
     // stray (e.g. test files) can end up inside an installer.
     if (isDesktop) rmSync(buildOptions.outdir, { recursive: true, force: true });
     copyPlotterfun();
+    copyFonts();
     if (process.env.SAXI_HOT_RELOAD) {
       const ctx = await context({
         ...buildOptions,
