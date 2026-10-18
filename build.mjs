@@ -1,6 +1,6 @@
 /* eslint-env node */
 
-import { cpSync } from "node:fs";
+import { cpSync, rmSync } from "node:fs";
 import { htmlPlugin as html } from "@craftamap/esbuild-plugin-html";
 import { build, context } from "esbuild";
 import inlineWorker from "esbuild-plugin-inline-worker";
@@ -10,7 +10,7 @@ import inlineWorker from "esbuild-plugin-inline-worker";
 const isDesktop = process.env.PENPILOT_DESKTOP === "1";
 
 const buildOptions = {
-  entryPoints: ["src/ui.tsx", "src/background-planner.ts"],
+  entryPoints: ["src/ui.tsx", "src/background-planner.ts", "src/penpilot/trace-worker.ts"],
   bundle: true,
   platform: "browser",
   target: "es2022",
@@ -47,6 +47,9 @@ const copyPlotterfun = () => cpSync("vendor/plotterfun", `${buildOptions.outdir}
 
 (async () => {
   try {
+    // The desktop build folder is entirely generated: start clean, so nothing
+    // stray (e.g. test files) can end up inside an installer.
+    if (isDesktop) rmSync(buildOptions.outdir, { recursive: true, force: true });
     copyPlotterfun();
     if (process.env.SAXI_HOT_RELOAD) {
       const ctx = await context({

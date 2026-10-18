@@ -1,14 +1,24 @@
-# Photo test (build step 3)
+# Tracing and photo test (build step 3)
 
 About 15 minutes on the Mac, plus plotting time. You need: the plotter (USB and power),
 an **A4 sheet**, a fine pen (0.3–0.5 mm works best for photos), tape, and **one photo**:
-a face or an object with clear light and dark areas. Install PenPilot 0.3.0 first (quit
+a face or an object with clear light and dark areas. Install PenPilot 0.3.1 first (quit
 the old one, drag the new one into Applications, and choose **Replace**).
 
-## 1. Turn a photo into lines
+## 0. Trace a line drawing (the main use)
+
+1. Add a **line drawing** as an image (like the hand JPG). It's traced straight away as
+   **Trace: centre lines**: one pen stroke down the middle of each line.
+2. If lines are missing or broken, raise **Threshold**. If dirt or specks show up, raise
+   **Remove specks**. **Simplify** and **Smoothing** make the lines cleaner and rounder.
+3. Add your **ghfh.svg**. PenPilot warns that it's made of filled shapes (a pen would
+   draw every line twice). Press **Trace centre lines instead**.
+4. Plot one of them: it should come out as single, clean lines.
+
+## 1. Turn a photo into line art
 
 1. Press **Add drawing or photo…** and pick your photo (JPG, PNG, WebP, GIF), or drag it in.
-   It fills the page and starts as **Squiggle**. The photo shows faintly behind the lines
+   It fills the page and starts as a trace. Pick an art style from the **Style** list. The photo shows faintly behind the lines
    while it's selected.
 2. Try a few **styles** from the list. Good first picks: **Spiral** and **Peano** (one
    continuous line), **Stipples** (dots), **Linedraw** (outlines + hatching), **Waves**.

@@ -45,7 +45,7 @@ describe("PenPilot photos: items", () => {
     expect(item.bounds).toEqual({ minX: 0, minY: 0, maxX: 800, maxY: 600 });
     const s = itemSize(item);
     expect(s.y).toBeCloseTo(170); // 210 - 2 x 20 limits it (4:3)
-    expect(item.photo?.style).toBe("squiggle.js");
+    expect(item.photo?.style).toBe("trace-centre"); // images start as a centre-line trace
   });
 
   it("keeps its size and place on the page when the detail changes", () => {

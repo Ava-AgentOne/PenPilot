@@ -49,6 +49,10 @@ export interface PageItem {
   rotation: Rotation;
   /** Set for photos: the picture and the style that turns it into `paths`. */
   photo?: PhotoInfo;
+  /** SVG drawings: the file's text, kept so it can be re-traced. */
+  svgText?: string;
+  /** SVG made only of filled shapes (no strokes): a pen would draw every line twice. */
+  fillOnly?: boolean;
 }
 
 export interface Page {
@@ -357,6 +361,8 @@ export type PageAction =
   /** Move by an offset, based on the current state (safe for key repeat). */
   | { type: "nudge"; id: string; dx: number; dy: number }
   | { type: "remove"; id: string }
+  /** Swap one item for another in the same place in the list (e.g. SVG -> its trace). */
+  | { type: "replace"; id: string; item: PageItem }
   /** Photo results and settings (see usePhotoRenderer / the photo panel). */
   | { type: "photoResult"; id: string; paths: Path[] }
   | { type: "photoStatus"; id: string; status: PhotoInfo["status"]; message: string }
@@ -376,6 +382,11 @@ export function pageReducer(page: Page, action: PageAction): Page {
       return {
         ...page,
         items: page.items.map((it) => (it.id === action.id ? { ...it, x: it.x + action.dx, y: it.y + action.dy } : it)),
+      };
+    case "replace":
+      return {
+        items: page.items.map((it) => (it.id === action.id ? action.item : it)),
+        selectedId: page.selectedId === action.id ? action.item.id : page.selectedId,
       };
     case "photoResult":
       return withPhoto(page, action.id, (it, photo) => ({

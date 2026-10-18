@@ -71,10 +71,12 @@
     "cors": "^2.8.5",
     "express": "^5.0.1",
     "flatten-svg": "^0.3.0",
+    "imagetracerjs": "1.2.6",
     "optimize-paths": "^1.2.2",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "serialport": "^13.0.0",
+    "skeleton-tracing-js": "1.0.4",
     "svgdom": "0.1.29",
     "ws": "^8.0.0",
     "yargs": "^18.0.0"

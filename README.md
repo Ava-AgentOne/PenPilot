@@ -12,8 +12,10 @@ is in [`PLAN.md`](PLAN.md).
 
 ## What works now (build steps 1–3)
 
-**Photos (step 3):**
-- Add a **photo** (JPG, PNG, WebP, GIF) like any drawing: it becomes pen lines in one of **23 styles** from [Plotterfun](https://github.com/mitxela/plotterfun). Styles include Squiggle, Spiral (one continuous line), Stipples, Linedraw, Halftone, Waves, Peano and Mosaic.
+**Tracing and photos (step 3):**
+- Add an **image** (JPG, PNG, WebP, GIF) and it is **traced** into vector lines. **Trace: centre lines** is the default: one pen stroke down the middle of every line of a drawing, drawn in a single pass. **Trace: outlines** traces the edges of every dark shape, like a typical "image trace", so the pen draws both sides of each line. Sliders: Threshold, Inverted, Blur, Remove specks, Simplify, Smoothing, Detail.
+- An **SVG made only of filled shapes** (typical image-trace output) gets a warning that the pen would draw every line twice, plus a **Trace centre lines instead** button. It converts the drawing in place, at the same size and position.
+- Or turn a **photo** into pen-line art with one of **23 styles** from [Plotterfun](https://github.com/mitxela/plotterfun). Styles include Squiggle, Spiral (one continuous line), Stipples, Linedraw, Halftone, Waves, Peano and Mosaic.
 - Each style's own sliders, plus **Detail**, **Brightness**, **Contrast** and **Inverted**. It redraws a moment after you stop moving a slider, and shows its progress.
 - The photo shows faintly behind its lines while selected. Move, resize, turn and Frame work as for any drawing.
 

@@ -5,6 +5,13 @@
 
 import type { Path } from "flatten-svg";
 
+/** PenPilot's own tracer (trace-worker.ts): line art -> vector lines. */
+export const TRACE_STYLES: { file: string; name: string }[] = [
+  { file: "trace-centre", name: "Trace: centre lines (best for line art)" },
+  { file: "trace-outline", name: "Trace: outlines" },
+];
+export const isTraceStyle = (style: string) => style.startsWith("trace-");
+
 /** Plotterfun's styles, in its own menu order, with its names. */
 export const PHOTO_STYLES: { file: string; name: string }[] = [
   { file: "squiggle.js", name: "Squiggle" },
@@ -32,7 +39,7 @@ export const PHOTO_STYLES: { file: string; name: string }[] = [
   { file: "margins.js", name: "Margins" },
 ];
 
-export const DEFAULT_STYLE = "squiggle.js";
+export const DEFAULT_STYLE = "trace-centre";
 /** Longest side of the picture the style works on, px (Plotterfun's page uses 800). */
 export const DEFAULT_DETAIL = 800;
 export const MIN_DETAIL = 200;
@@ -183,7 +190,8 @@ export function runPhotoStyle(
     onError(text: string): void;
   },
 ): PhotoJob {
-  const worker = new Worker(`plotterfun/${style}`);
+  const worker = new Worker(isTraceStyle(style) ? "penpilot/trace-worker.js" : `plotterfun/${style}`);
+  const mode = style === "trace-outline" ? { Mode: "outline" } : { Mode: "centre" };
   let cancelled = false;
   worker.onmessage = (e: MessageEvent) => {
     if (cancelled) return;
@@ -192,7 +200,7 @@ export function runPhotoStyle(
       const controls = data as PhotoControl[];
       const full = withDefaults(controls, config);
       handlers.onControls(controls, full);
-      worker.postMessage([{ ...full, width: image.width, height: image.height }, image]);
+      worker.postMessage([{ ...full, ...mode, width: image.width, height: image.height }, image]);
     } else if (type === "svg-path") {
       handlers.onLines(parsePlotterfunPath(data as string));
     } else if (type === "msg") {
@@ -208,6 +216,42 @@ export function runPhotoStyle(
       worker.terminate();
     },
   };
+}
+
+/**
+ * Render (part of) an SVG to a picture for tracing, e.g. an SVG made of filled
+ * shapes that should become centre lines. `crop` is in the SVG's CSS px, as
+ * flatten-svg reports them; a small paper border is kept around it.
+ */
+export async function svgToBitmap(
+  svgText: string,
+  crop: { minX: number; minY: number; maxX: number; maxY: number },
+  longSide = 1600,
+): Promise<{ bitmap: ImageBitmap; previewUrl: string; pad: number }> {
+  const pad = 2;
+  const url = URL.createObjectURL(new Blob([svgText], { type: "image/svg+xml" }));
+  try {
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    const cw = crop.maxX - crop.minX + 2 * pad;
+    const ch = crop.maxY - crop.minY + 2 * pad;
+    const k = longSide / Math.max(cw, ch);
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(cw * k));
+    canvas.height = Math.max(1, Math.round(ch * k));
+    const ctx = canvas.getContext("2d") as CanvasRenderingContext2D;
+    ctx.fillStyle = "white";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, -(crop.minX - pad) * k, -(crop.minY - pad) * k, img.naturalWidth * k, img.naturalHeight * k);
+    const bitmap = await createImageBitmap(canvas);
+    const blob = await new Promise<Blob>((res, rej) =>
+      canvas.toBlob((b) => (b ? res(b) : rej(new Error("Couldn't render the drawing."))), "image/png"),
+    );
+    return { bitmap, previewUrl: URL.createObjectURL(blob), pad };
+  } finally {
+    URL.revokeObjectURL(url);
+  }
 }
 
 /** Stable key for "what would be drawn", to know when to redraw. */

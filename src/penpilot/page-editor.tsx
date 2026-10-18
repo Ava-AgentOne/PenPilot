@@ -26,7 +26,7 @@ import {
   type Size,
   setPhotoDetail,
 } from "./page.js";
-import { MAX_DETAIL, MIN_DETAIL, PHOTO_STYLES, type PhotoConfig } from "./photo.js";
+import { MAX_DETAIL, MIN_DETAIL, PHOTO_STYLES, type PhotoConfig, TRACE_STYLES } from "./photo.js";
 
 const SNAP_MM = 2;
 const MIN_SIZE_MM = 3;
@@ -331,6 +331,8 @@ export function PageCanvas({
 // ---- Side panel -------------------------------------------------------------------
 
 type PanelProps = {
+  /** Replace an SVG made of filled shapes by its centre-line trace. */
+  onTraceSvg: (item: PageItem) => void;
   page: Page;
   pageDispatch: (a: PageAction) => void;
   pageSize: Size;
@@ -377,7 +379,16 @@ function NumberField({
   );
 }
 
-export function DrawingsPanel({ page, pageDispatch, pageSize, marginMm, drawable, locked, onAddFiles }: PanelProps) {
+export function DrawingsPanel({
+  page,
+  pageDispatch,
+  pageSize,
+  marginMm,
+  drawable,
+  locked,
+  onAddFiles,
+  onTraceSvg,
+}: PanelProps) {
   const fileInput = useRef<HTMLInputElement>(null);
   const selected = page.items.find((it) => it.id === page.selectedId) ?? null;
   const update = (item: PageItem) => pageDispatch({ type: "update", item });
@@ -421,6 +432,15 @@ export function DrawingsPanel({ page, pageDispatch, pageSize, marginMm, drawable
             </li>
           ))}
         </ul>
+      )}
+      {selected?.fillOnly && (
+        <div className="pp-note pp-fill-only">
+          This drawing is made of <strong>filled shapes</strong>. A pen can only go round their edges, so every line
+          would be drawn twice (along both sides).
+          <button type="button" className="pp-fill-only-button" disabled={locked} onClick={() => onTraceSvg(selected)}>
+            Trace centre lines instead
+          </button>
+        </div>
       )}
       {selected?.photo && <PhotoPanel item={selected} pageDispatch={pageDispatch} locked={locked} />}
       {selected && size && (
@@ -550,11 +570,20 @@ function PhotoPanel({
           disabled={locked}
           onChange={(e) => pageDispatch({ type: "photoSettings", id: item.id, style: e.target.value })}
         >
-          {PHOTO_STYLES.map((st) => (
-            <option key={st.file} value={st.file}>
-              {st.name}
-            </option>
-          ))}
+          <optgroup label="Trace (vector lines)">
+            {TRACE_STYLES.map((st) => (
+              <option key={st.file} value={st.file}>
+                {st.name}
+              </option>
+            ))}
+          </optgroup>
+          <optgroup label="Art styles (Plotterfun)">
+            {PHOTO_STYLES.map((st) => (
+              <option key={st.file} value={st.file}>
+                {st.name}
+              </option>
+            ))}
+          </optgroup>
         </select>
       </label>
       <SliderField

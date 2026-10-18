@@ -32,11 +32,13 @@ import {
   machineReach,
   newItem,
   newPhotoItem,
+  type PageItem,
+  itemSize,
   pageReducer,
   plannerPaths,
 } from "./penpilot/page.js";
 import { DrawingsPanel, OrientationNotes, PageCanvas } from "./penpilot/page-editor.js";
-import { isImageFile } from "./penpilot/photo.js";
+import { isImageFile, svgToBitmap } from "./penpilot/photo.js";
 import { usePhotoRenderer } from "./penpilot/photo-renderer.js";
 import { PlotterCheck } from "./penpilot/plotter-check.js";
 
@@ -1065,13 +1067,42 @@ function Root() {
         setFileMessage(`“${name}” has no lines for the pen to draw. It may contain only a picture.`);
         return;
       }
-      const item = newItem(name, paths, pageSize, marginMm);
+      const created = newItem(name, paths, pageSize, marginMm);
+      const item = created && { ...created, svgText: text, fillOnly: isFillOnlySvg(text) };
       if (!item) {
         setFileMessage(`“${name}” has no lines for the pen to draw. It may contain only a picture.`);
         return;
       }
       setFileMessage(null);
       pageDispatch({ type: "add", items: [item] });
+    },
+    [pageSize, marginMm],
+  );
+
+  // An SVG of filled shapes -> the same drawing as a centre-line trace, same size and place.
+  const traceSvgItem = React.useCallback(
+    async (item: PageItem) => {
+      if (!item.svgText) return;
+      try {
+        const { bitmap, previewUrl } = await svgToBitmap(item.svgText, item.bounds);
+        const traced = newPhotoItem(item.name, bitmap, previewUrl, pageSize, marginMm);
+        const before = itemSize(item);
+        const turned = item.rotation === 90 || item.rotation === 270;
+        const sourceWidthMm = turned ? before.y : before.x;
+        const pad = 2 * item.scale; // svgToBitmap keeps a 2 px border
+        const photoWidthPx = traced.photo?.width ?? 1;
+        let next: PageItem = {
+          ...traced,
+          rotation: item.rotation,
+          scale: (sourceWidthMm + 2 * pad) / photoWidthPx,
+        };
+        const after = itemSize(next);
+        next = { ...next, x: item.x + (before.x - after.x) / 2, y: item.y + (before.y - after.y) / 2 };
+        pageDispatch({ type: "replace", id: item.id, item: next });
+      } catch (e) {
+        console.error(e);
+        setFileMessage(`PenPilot couldn't trace “${item.name}”.`);
+      }
     },
     [pageSize, marginMm],
   );
@@ -1230,6 +1261,7 @@ function Root() {
               drawable={layout.drawableOnPage}
               locked={locked}
               onAddFiles={addFiles}
+              onTraceSvg={traceSvgItem}
             />
             <LayerSelector state={state} />
           </div>
@@ -1335,6 +1367,31 @@ function DragTarget({ handleFile }: { handleFile: (file: File) => void }) {
 // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 // biome-ignore lint/style/noNonNullAssertion: static element
 createRoot(document.getElementById("app")!).render(<Root />);
+
+/**
+ * PenPilot: true when every shape in the SVG is filled and none has a stroke
+ * (typical "image trace" output). A pen plots such shapes as their outlines.
+ */
+function isFillOnlySvg(svgString: string): boolean {
+  const doc = new DOMParser().parseFromString(svgString, "image/svg+xml");
+  const svg = doc.querySelector("svg");
+  if (!svg) return false;
+  const container = document.createElement("div");
+  container.style.position = "absolute";
+  container.style.left = "99999px";
+  document.body.appendChild(container);
+  try {
+    const live = container.appendChild(document.importNode(svg, true));
+    const shapes = Array.from(live.querySelectorAll("path, rect, circle, ellipse, polygon, polyline, line"));
+    if (shapes.length === 0) return false;
+    return shapes.every((el) => {
+      const cs = getComputedStyle(el);
+      return cs.stroke === "none" && cs.fill !== "none";
+    });
+  } finally {
+    container.remove();
+  }
+}
 
 /**
  * Read an SVG string and transform it to a list of Path.
