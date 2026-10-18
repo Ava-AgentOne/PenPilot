@@ -6,12 +6,12 @@ and some tape.
 
 ## 1. Install
 
-**Mac:** open `release/PenPilot-0.1.0-mac-arm64.dmg`, drag PenPilot into Applications,
+**Mac:** open `release/PenPilot-0.2.0-mac-arm64.dmg`, drag PenPilot into Applications,
 and open it. Because it was built on this Mac, there's no security warning.
 
 **Windows:** copy the `release/windows` folder to the PC (USB stick or shared folder).
-Then either run `PenPilot-Setup-0.1.0.exe` to install, or double-click
-`PenPilot-Portable-0.1.0.exe` to run it without installing. If Windows says
+Then either run `PenPilot-Setup-0.2.0.exe` to install, or double-click
+`PenPilot-Portable-0.2.0.exe` to run it without installing. If Windows says
 "Windows protected your PC", press **More info → Run anyway** (first time only).
 
 ## 2. Plotter check
