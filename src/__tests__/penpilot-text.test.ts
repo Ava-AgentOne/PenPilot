@@ -8,15 +8,17 @@ import {
   SINGLE_LINE_FONTS,
 } from "../penpilot/text.js";
 
-const fontFile = (f: string) => readFileSync(`node_modules/hersheytext/svg_fonts/${f}`, "utf8");
+const fontFile = (f: string) =>
+  readFileSync(`vendor/single-line-fonts/${f.startsWith("EMS") ? "EMS" : "Hershey"}/${f}`, "utf8");
 
 describe("PenPilot single-line text", () => {
   it("reads every bundled font", () => {
     for (const { file } of SINGLE_LINE_FONTS) {
       const font = parseSingleLineFont(fontFile(file));
-      expect(font.capHeight).toBeGreaterThan(600); // measured from "H"
-      expect(font.top).toBeGreaterThanOrEqual(800);
-      expect(font.bottom).toBeLessThanOrEqual(-200);
+      expect(font.capHeight, file).toBeGreaterThan(0); // measured from "H"
+      expect(font.top, file).toBeGreaterThan(font.capHeight * 0.99);
+      expect(font.bottom, file).toBeLessThan(0);
+      expect(font.glyphs.size, file).toBeGreaterThan(90);
       expect(font.glyphs.get("A")?.strokes.length, file).toBeGreaterThan(0);
       expect(font.glyphs.get(" ")?.strokes, file).toEqual([]);
       expect(font.glyphs.has('"'), `${file} decodes &#x22;`).toBe(true);
@@ -52,5 +54,24 @@ describe("PenPilot single-line text", () => {
     const font = parseSingleLineFont(fontFile("EMSReadability.svg"));
     expect(missingCharacters(font, "Hi مرحبا")).toEqual(["م", "ر", "ح", "ب", "ا"]);
     expect(missingCharacters(font, "Hello, world!")).toEqual([]);
+  });
+});
+
+describe("PenPilot single-line text: glyph paths", () => {
+  it("reads lines, curves (flattened), closing and repeated coordinates", async () => {
+    const { parseStrokes } = await import("../penpilot/text.js");
+    const [line] = parseStrokes("M 0 0 L 10 0 20 0");
+    expect(line).toEqual([
+      [0, 0],
+      [10, 0],
+      [20, 0],
+    ]);
+    const [curve] = parseStrokes("M0,0 C0,10 10,10 10,0");
+    expect(curve[0]).toEqual([0, 0]);
+    expect(curve[curve.length - 1]).toEqual([10, 0]);
+    expect(Math.max(...curve.map((p) => p[1]))).toBeCloseTo(7.5, 1); // a cubic's peak
+    const [loop] = parseStrokes("M1 1 L5 1 L5 5 Z");
+    expect(loop[loop.length - 1]).toEqual([1, 1]);
+    expect(parseStrokes("M1 1 L2 2 M3 3 L4 4")).toHaveLength(2);
   });
 });

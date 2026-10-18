@@ -13,7 +13,8 @@ is in [`PLAN.md`](PLAN.md).
 ## What works now (build steps 1–4)
 
 **Single-line text (step 4):**
-- **Add text**, in **18 single-line fonts** (Hershey and EMS): each letter is one pen stroke, like handwriting, with no hollow outlines. Styles include clean sans, serif, script/handwriting and Gothic.
+- **Add text** in **41 single-stroke fonts** (Windell Oskay's Hershey and EMS collection, 22 of them handwriting and script): each letter is one pen stroke, with no hollow outlines.
+- **Arabic** (Aref Ruqaa Ruqʿah handwriting, Alkalami, Noto Naskh, Amiri, Lateef, Reem Kufi, Tajawal) and **more handwriting** (Caveat, Dancing Script, Kalam, Homemade Apple, Indie Flower), written as **traced fonts**. PenPilot draws the text in the font, so Arabic joins and runs right-to-left correctly, then traces one pen line through each letter. Letter dots become small pen circles.
 - Several lines, **letter size** (capital height in mm, measured from each font's real letters), **letter spacing**, **line spacing**, **left / centre / right**. Move, resize and turn it like any drawing; resizing changes the letter size.
 - Letters a font can't write (e.g. Arabic) are named in a plain message.
 

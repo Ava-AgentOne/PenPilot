@@ -22,6 +22,9 @@ const controls = [
   { label: "Remove specks", value: 12, min: 0, max: 200 },
   { label: "Simplify", value: 0.8, min: 0, max: 4, step: 0.1 },
   { label: "Smoothing", value: 2, min: 0, max: 4 },
+  // Small round blobs up to this size (px) become pen dots instead of being
+  // thinned away -- e.g. Arabic letter dots, or dots in a drawing. 0 = off.
+  { label: "Dots", value: 0, min: 0, max: 60 },
 ];
 
 // Worker scope: postMessage takes just the message.
@@ -35,6 +38,7 @@ self.onmessage = (e: MessageEvent) => {
   try {
     post(["msg", "Tracing…"]);
     const dark = binarise(image, Number(config.Threshold), Boolean(config.Inverted), Number(config.Blur));
+    const dots = config.Mode === "outline" ? [] : takeDots(dark, image.width, image.height, Number(config.Dots ?? 0));
     const lines =
       config.Mode === "outline"
         ? traceOutlines(dark, image.width, image.height)
@@ -43,7 +47,7 @@ self.onmessage = (e: MessageEvent) => {
       .filter((l) => length(l) >= Number(config["Remove specks"]))
       .map((l) => smooth(simplify(l, Number(config.Simplify)), Number(config.Smoothing)))
       .filter((l) => l.length > 1);
-    post(["svg-path", toPathData(cleaned)]);
+    post(["svg-path", toPathData(cleaned.concat(dots))]);
     post(["msg", "Done"]);
   } catch (err) {
     // Surfaces as the worker's error event (shown in the photo panel).
@@ -99,6 +103,74 @@ function boxBlur(src: Float32Array, w: number, h: number, r: number): Float32Arr
     }
   }
   return out;
+}
+
+/**
+ * Find small, compact blobs (no bigger than `maxSize` px, mostly filled) and
+ * turn each into a tiny pen circle; they're erased from `dark` so thinning
+ * doesn't reduce them to a speck that gets thrown away.
+ */
+function takeDots(dark: Uint8Array, w: number, h: number, maxSize: number): Pt[][] {
+  if (maxSize <= 0) return [];
+  const seen = new Uint8Array(w * h);
+  const dots: Pt[][] = [];
+  const stack: number[] = [];
+  for (let start = 0; start < w * h; start++) {
+    if (!dark[start] || seen[start]) continue;
+    // Flood-fill one blob (8-connected).
+    const pixels: number[] = [];
+    let minX = w;
+    let minY = h;
+    let maxX = 0;
+    let maxY = 0;
+    let tooBig = false;
+    seen[start] = 1;
+    stack.push(start);
+    while (stack.length) {
+      const i = stack.pop() as number;
+      const x = i % w;
+      const y = (i - x) / w;
+      if (!tooBig) pixels.push(i);
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+      if (maxX - minX >= maxSize || maxY - minY >= maxSize) tooBig = true;
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const nx = x + dx;
+          const ny = y + dy;
+          if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+          const j = ny * w + nx;
+          if (dark[j] && !seen[j]) {
+            seen[j] = 1;
+            stack.push(j);
+          }
+        }
+      }
+    }
+    if (tooBig) continue;
+    const bw = maxX - minX + 1;
+    const bh = maxY - minY + 1;
+    if (pixels.length < 4 || pixels.length / (bw * bh) < 0.4) continue; // noise, or a thin stroke
+    let cx = 0;
+    let cy = 0;
+    for (const i of pixels) {
+      cx += i % w;
+      cy += Math.floor(i / w);
+      dark[i] = 0;
+    }
+    cx /= pixels.length;
+    cy /= pixels.length;
+    const r = Math.max(0.8, 0.3 * Math.min(bw, bh));
+    const ring: Pt[] = [];
+    for (let k = 0; k <= 10; k++) {
+      const t = (k / 10) * 2 * Math.PI;
+      ring.push([cx + r * Math.cos(t), cy + r * Math.sin(t)]);
+    }
+    dots.push(ring);
+  }
+  return dots;
 }
 
 function traceCentreLines(dark: Uint8Array, w: number, h: number): Pt[][] {

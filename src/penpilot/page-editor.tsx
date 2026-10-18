@@ -28,6 +28,7 @@ import {
 } from "./page.js";
 import { MAX_DETAIL, MIN_DETAIL, PHOTO_STYLES, type PhotoConfig, TRACE_STYLES } from "./photo.js";
 import { type Align, SINGLE_LINE_FONTS, type TextInfo } from "./text.js";
+import { isTracedFont, TRACED_FONTS } from "./traced-text.js";
 
 const SNAP_MM = 2;
 const MIN_SIZE_MM = 3;
@@ -712,6 +713,7 @@ function TextPanel({
         text
         <textarea
           rows={3}
+          dir="auto"
           value={t.text}
           disabled={locked}
           onChange={(e) => set({ text: e.target.value })}
@@ -719,17 +721,46 @@ function TextPanel({
         />
       </label>
       <label className="pp-field">
-        font (one stroke per letter)
+        font
         <select value={t.font} disabled={locked} onChange={(e) => set({ font: e.target.value })}>
-          {SINGLE_LINE_FONTS.map((f) => (
-            <option key={f.file} value={f.file}>
-              {f.name}
-            </option>
-          ))}
+          <optgroup label="Handwriting & script: single stroke">
+            {SINGLE_LINE_FONTS.filter((f) => f.group === "script").map((f) => (
+              <option key={f.file} value={f.file}>
+                {f.name}
+              </option>
+            ))}
+          </optgroup>
+          <optgroup label="Arabic: traced centre line">
+            {TRACED_FONTS.filter((f) => f.arabic).map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.name}
+              </option>
+            ))}
+          </optgroup>
+          <optgroup label="More handwriting: traced centre line">
+            {TRACED_FONTS.filter((f) => !f.arabic).map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.name}
+              </option>
+            ))}
+          </optgroup>
+          <optgroup label="Print & display: single stroke">
+            {SINGLE_LINE_FONTS.filter((f) => f.group === "print").map((f) => (
+              <option key={f.file} value={f.file}>
+                {f.name}
+              </option>
+            ))}
+          </optgroup>
         </select>
       </label>
+      {isTracedFont(t.font) && (
+        <div className="pp-hint">
+          Traced font: PenPilot writes the text in this font and traces one pen line through the middle of each letter.
+          Arabic joining and dots are kept.
+        </div>
+      )}
       <NumberField
-        label="letter size: capital height (mm)"
+        label="letter size (mm): height of H, or of ا in Arabic"
         value={t.sizeMm * item.scale}
         disabled={locked}
         onChange={(v) => v > 0 && set({ sizeMm: v }, 1)}

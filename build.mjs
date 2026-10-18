@@ -44,9 +44,12 @@ const buildOptions = {
 
 // PenPilot: Plotterfun's photo styles run as plain Web Workers, copied as-is.
 const copyPlotterfun = () => cpSync("vendor/plotterfun", `${buildOptions.outdir}/plotterfun`, { recursive: true });
-// PenPilot: single-line fonts (Hershey + EMS SVG fonts), copied unchanged.
-const copyFonts = () =>
-  cpSync("node_modules/hersheytext/svg_fonts", `${buildOptions.outdir}/fonts-single-line`, { recursive: true });
+// PenPilot: single-stroke fonts (Hershey + EMS SVG fonts), copied unchanged.
+const copyFonts = () => {
+  for (const dir of ["EMS", "Hershey"]) {
+    cpSync(`vendor/single-line-fonts/${dir}`, `${buildOptions.outdir}/fonts-single-line`, { recursive: true });
+  }
+};
 
 (async () => {
   try {

@@ -7,25 +7,49 @@
 
 import type { Path } from "flatten-svg";
 
-export const SINGLE_LINE_FONTS: { file: string; name: string }[] = [
-  { file: "EMSReadability.svg", name: "EMS Readability" },
-  { file: "EMSReadabilityItalic.svg", name: "EMS Readability Italic" },
-  { file: "EMSAllure.svg", name: "EMS Allure (script)" },
-  { file: "EMSFelix.svg", name: "EMS Felix (script)" },
-  { file: "EMSElfin.svg", name: "EMS Elfin" },
-  { file: "EMSNixish.svg", name: "EMS Nixish" },
-  { file: "EMSNixishItalic.svg", name: "EMS Nixish Italic" },
-  { file: "EMSOsmotron.svg", name: "EMS Osmotron" },
-  { file: "EMSTech.svg", name: "EMS Tech" },
-  { file: "HersheySans1.svg", name: "Hershey Sans" },
-  { file: "HersheySansMed.svg", name: "Hershey Sans Medium" },
-  { file: "HersheySerifMed.svg", name: "Hershey Serif" },
-  { file: "HersheySerifMedItalic.svg", name: "Hershey Serif Italic" },
-  { file: "HersheySerifBold.svg", name: "Hershey Serif Bold" },
-  { file: "HersheySerifBoldItalic.svg", name: "Hershey Serif Bold Italic" },
-  { file: "HersheyScript1.svg", name: "Hershey Script" },
-  { file: "HersheyScriptMed.svg", name: "Hershey Script Medium" },
-  { file: "HersheyGothEnglish.svg", name: "Hershey Gothic English" },
+/** Single-stroke fonts (vendor/single-line-fonts): handwriting/script first. */
+export const SINGLE_LINE_FONTS: { file: string; name: string; group: "script" | "print" }[] = [
+  { file: "EMSCasualHand.svg", name: "EMS Casual Hand", group: "script" },
+  { file: "EMSNeato.svg", name: "EMS Neato", group: "script" },
+  { file: "EMSPepita.svg", name: "EMS Pepita", group: "script" },
+  { file: "EMSTech.svg", name: "EMS Tech (architect's hand)", group: "script" },
+  { file: "EMSDelight.svg", name: "EMS Delight", group: "script" },
+  { file: "EMSDelightSwashCaps.svg", name: "EMS Delight Swash Caps", group: "script" },
+  { file: "EMSPancakes.svg", name: "EMS Pancakes", group: "script" },
+  { file: "EMSAllure.svg", name: "EMS Allure", group: "script" },
+  { file: "EMSCapitol.svg", name: "EMS Capitol", group: "script" },
+  { file: "EMSSociety.svg", name: "EMS Society", group: "script" },
+  { file: "EMSInvite.svg", name: "EMS Invite", group: "script" },
+  { file: "EMSSwiss.svg", name: "EMS Swiss", group: "script" },
+  { file: "EMSBrush.svg", name: "EMS Brush", group: "script" },
+  { file: "EMSBird.svg", name: "EMS Bird", group: "script" },
+  { file: "EMSBirdSwashCaps.svg", name: "EMS Bird Swash Caps", group: "script" },
+  { file: "EMSDecorousScript.svg", name: "EMS Decorous Script", group: "script" },
+  { file: "EMSLeague.svg", name: "EMS League", group: "script" },
+  { file: "EMSQwandry.svg", name: "EMS Qwandry", group: "script" },
+  { file: "EMSFelix.svg", name: "EMS Felix", group: "script" },
+  { file: "EMSLittlePrincess.svg", name: "EMS Little Princess", group: "script" },
+  { file: "HersheyScript1.svg", name: "Hershey Script", group: "script" },
+  { file: "HersheyScriptMed.svg", name: "Hershey Script Medium", group: "script" },
+  { file: "EMSReadability.svg", name: "EMS Readability", group: "print" },
+  { file: "EMSReadabilityItalic.svg", name: "EMS Readability Italic", group: "print" },
+  { file: "EMSNixish.svg", name: "EMS Nixish", group: "print" },
+  { file: "EMSNixishItalic.svg", name: "EMS Nixish Italic", group: "print" },
+  { file: "EMSHerculean.svg", name: "EMS Herculean", group: "print" },
+  { file: "EMSOsmotron.svg", name: "EMS Osmotron", group: "print" },
+  { file: "EMSElfin.svg", name: "EMS Elfin", group: "print" },
+  { file: "EMSMistyNight.svg", name: "EMS Misty Night", group: "print" },
+  { file: "EMSSpaceRocks.svg", name: "EMS SpaceRocks (Asteroids)", group: "print" },
+  { file: "TwinSans.svg", name: "Twin Sans", group: "print" },
+  { file: "HersheySans1.svg", name: "Hershey Sans", group: "print" },
+  { file: "HersheySansMed.svg", name: "Hershey Sans Medium", group: "print" },
+  { file: "HersheySerifMed.svg", name: "Hershey Serif", group: "print" },
+  { file: "HersheySerifMedItalic.svg", name: "Hershey Serif Italic", group: "print" },
+  { file: "HersheySerifBold.svg", name: "Hershey Serif Bold", group: "print" },
+  { file: "HersheySerifBoldItalic.svg", name: "Hershey Serif Bold Italic", group: "print" },
+  { file: "HersheyGothEnglish.svg", name: "Hershey Gothic English", group: "print" },
+  { file: "HersheyGothGerman.svg", name: "Hershey Gothic German", group: "print" },
+  { file: "HersheyGothItalian.svg", name: "Hershey Gothic Italian", group: "print" },
 ];
 export const DEFAULT_FONT = "EMSReadability.svg";
 
@@ -86,18 +110,53 @@ function attrs(tag: string): Record<string, string> {
   return out;
 }
 
-/** Glyph outlines are straight-line polylines: "M x y L x y ... M ...", y pointing up. */
-function parseStrokes(d: string): Stroke[] {
+/**
+ * Glyph paths (font units, y up): absolute M, L, C (cubic curves, flattened)
+ * and Z, with implicit repeats, as used by the Hershey and EMS SVG fonts.
+ */
+export function parseStrokes(d: string): Stroke[] {
   const strokes: Stroke[] = [];
   let current: Stroke | null = null;
-  for (const m of d.matchAll(/([ML])\s*([-\d.eE]+)[\s,]+([-\d.eE]+)/g)) {
-    const p: [number, number] = [Number(m[2]), Number(m[3])];
-    if (m[1] === "M") {
-      if (current && current.length > 1) strokes.push(current);
-      current = [p];
-    } else current?.push(p);
+  let start: [number, number] = [0, 0];
+  const tokens = d.match(/[MLCZmlcz]|-?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?/g) ?? [];
+  let i = 0;
+  let cmd = "";
+  const num = () => Number(tokens[i++]);
+  const isNum = () => i < tokens.length && !/^[MLCZmlcz]$/.test(tokens[i]);
+  const finish = () => {
+    if (current && current.length > 1) strokes.push(current);
+    current = null;
+  };
+  while (i < tokens.length) {
+    if (!isNum()) cmd = tokens[i++].toUpperCase();
+    if (cmd === "M") {
+      finish();
+      start = [num(), num()];
+      current = [start];
+      cmd = "L"; // further pairs are line-tos
+    } else if (cmd === "L") {
+      current?.push([num(), num()]);
+    } else if (cmd === "C") {
+      const p0: [number, number] = current?.[current.length - 1] ?? start;
+      const c1: [number, number] = [num(), num()];
+      const c2: [number, number] = [num(), num()];
+      const p3: [number, number] = [num(), num()];
+      for (let k = 1; k <= 8; k++) {
+        const t = k / 8;
+        const a = (1 - t) ** 3;
+        const b = 3 * (1 - t) ** 2 * t;
+        const c = 3 * (1 - t) * t * t;
+        const e = t ** 3;
+        current?.push([a * p0[0] + b * c1[0] + c * c2[0] + e * p3[0], a * p0[1] + b * c1[1] + c * c2[1] + e * p3[1]]);
+      }
+    } else if (cmd === "Z") {
+      current?.push(start);
+      finish();
+    } else {
+      i++; // unknown token: skip
+    }
   }
-  if (current && current.length > 1) strokes.push(current);
+  finish();
   return strokes;
 }
 
@@ -174,9 +233,27 @@ export function layoutText(font: SingleLineFont, t: TextInfo): { paths: Path[]; 
     return line.length > 0 ? w - extra : 0;
   });
   const boxWidth = Math.max(...widths, 0);
+  // The box hugs the letters actually used: from the tallest letter of the
+  // first line (at least a capital) to the lowest of the last (at least the
+  // font's descent), so a few unusually tall glyphs don't pad every text.
+  const yRange = (line: string) => {
+    let hi = Number.NEGATIVE_INFINITY;
+    let lo = Number.POSITIVE_INFINITY;
+    for (const ch of line) {
+      for (const st of font.glyphs.get(ch)?.strokes ?? []) {
+        for (const [, y] of st) {
+          if (y > hi) hi = y;
+          if (y < lo) lo = y;
+        }
+      }
+    }
+    return { hi, lo };
+  };
+  const top = Math.max(font.capHeight, yRange(lines[0]).hi);
+  const bottom = Math.min(font.descent, yRange(lines[lines.length - 1]).lo);
   const paths: Path[] = [];
   lines.forEach((line, i) => {
-    const baseline = font.top + i * lineHeight;
+    const baseline = top + i * lineHeight;
     let x = t.align === "centre" ? (boxWidth - widths[i]) / 2 : t.align === "right" ? boxWidth - widths[i] : 0;
     for (const ch of line) {
       const g = font.glyphs.get(ch);
@@ -192,7 +269,7 @@ export function layoutText(font: SingleLineFont, t: TextInfo): { paths: Path[]; 
       x += (g?.advance ?? font.defaultAdvance) + extra;
     }
   });
-  const height = font.top - font.bottom + (lines.length - 1) * lineHeight;
+  const height = top - bottom + (lines.length - 1) * lineHeight;
   return { paths, width: Math.max(boxWidth * k, t.sizeMm * 0.5), height: height * k };
 }
 
