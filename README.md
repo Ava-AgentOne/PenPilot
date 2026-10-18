@@ -10,7 +10,12 @@ is in [`PLAN.md`](PLAN.md).
 
 
 
-## What works now (build steps 1–2)
+## What works now (build steps 1–3)
+
+**Photos (step 3):**
+- Add a **photo** (JPG, PNG, WebP, GIF) like any drawing: it becomes pen lines in one of **23 styles** from [Plotterfun](https://github.com/mitxela/plotterfun). Styles include Squiggle, Spiral (one continuous line), Stipples, Linedraw, Halftone, Waves, Peano and Mosaic.
+- Each style's own sliders, plus **Detail**, **Brightness**, **Contrast** and **Inverted**. It redraws a moment after you stop moving a slider, and shows its progress.
+- The photo shows faintly behind its lines while selected. Move, resize, turn and Frame work as for any drawing.
 
 **Page editor (step 2):**
 - **Several drawings on one page.** Add SVGs with **Add drawing…** or drag them in (several at once).
