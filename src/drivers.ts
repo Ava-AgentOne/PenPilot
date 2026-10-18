@@ -105,13 +105,22 @@ export class WebSerialDriver extends BaseDriver {
     this._cancelRequested = false;
     await this.ebb.enableMotors(microsteppingMode);
 
+    // PenPilot: a plan's first pen motion is "down", so its start is the pen-up
+    // position. Use it rather than assuming "up" is the larger servo value,
+    // which isn't true for reversed pen-lift motors (penLiftReversed).
+    const firstPenMotion = plan.motions.find((motion): motion is PenMotion => motion instanceof PenMotion);
+    const penUpPosition = firstPenMotion?.initialPos;
+    // Lift the pen before the first travel move (as saxi's server mode does),
+    // in case it was left down, e.g. after testing "pen down".
+    if (penUpPosition !== undefined) await this.ebb.setPenHeight(penUpPosition, 1000, 1000);
+
     let motionIdx = 0;
     let penIsUp = true;
     for (const motion of plan.motions) {
       this.onprogress(motionIdx);
       await this.ebb.executeMotion(motion);
       if (motion instanceof PenMotion) {
-        penIsUp = motion.initialPos < motion.finalPos;
+        penIsUp = penUpPosition !== undefined ? motion.finalPos === penUpPosition : motion.initialPos < motion.finalPos;
       }
       if (this._unpaused && penIsUp) {
         await this._unpaused;
@@ -125,9 +134,7 @@ export class WebSerialDriver extends BaseDriver {
       const device = Device(this.ebb.hardware);
       if (!penIsUp) {
         // Move to the pen up position, or 50% if no position was found
-        const penMotion = plan.motions.find((motion): motion is PenMotion => motion instanceof PenMotion);
-        const penUpPosition = penMotion ? Math.max(penMotion.initialPos, penMotion.finalPos) : device.penPctToPos(50);
-        await this.ebb.setPenHeight(penUpPosition, 1000);
+        await this.ebb.setPenHeight(penUpPosition ?? device.penPctToPos(50), 1000);
         await this.ebb.command("HM,4000"); // HM returns carriage home without 3rd and 4th arguments
       }
       this.oncancelled();

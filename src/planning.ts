@@ -34,6 +34,8 @@ export interface PlanOptions {
 
   minimumPathLength: number;
   hardware: Hardware;
+  /** PenPilot: the pen-lift motor moves the opposite way (common on AxiDraw-compatible clones). */
+  penLiftReversed: boolean;
   penHome: Vec2;
 }
 
@@ -65,6 +67,7 @@ export const defaultPlanOptions: PlanOptions = {
 
   minimumPathLength: 0,
   hardware: "v3",
+  penLiftReversed: false,
   penHome: { x: 0, y: 0 },
 };
 
@@ -95,11 +98,22 @@ interface ToolingProfile {
   penDropDuration: number;
 }
 
-export const Device = (hardware = "v3"): Device => {
+const baseDevice = (hardware: string): Device => {
   if (hardware === "brushless") return AxidrawBrushless;
   if (hardware === "nextdraw-2234") return NextDraw2234;
   if (hardware === "idraw-h-se") return Axidraw; // https://github.com/alexrudd2/saxi/issues/298
   return Axidraw;
+};
+
+/**
+ * PenPilot: `penLiftReversed` mirrors the pen-height scale for pen-lift motors
+ * that move the other way (e.g. a servo mounted the other way round on
+ * AxiDraw-compatible clones), so "pen up" really lifts the pen.
+ */
+export const Device = (hardware = "v3", penLiftReversed = false): Device => {
+  const device = baseDevice(hardware);
+  if (!penLiftReversed) return device;
+  return { ...device, penPctToPos: (pct: number) => device.penPctToPos(100 - pct) };
 };
 
 export interface Device {

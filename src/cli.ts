@@ -181,6 +181,7 @@ export function cli(argv: string[]): void {
           paperSize,
           marginMm: args.margin,
           hardware: args.hardware,
+          penLiftReversed: false,
           penHome: { x: 0, y: 0 },
 
           selectedGroupLayers: new Set([]), // TODO

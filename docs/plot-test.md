@@ -30,13 +30,18 @@ Then either run `PenPilot-Setup-0.1.0.exe` to install, or double-click
    all the way to the left, and with the arm pushed all the way in toward the plotter's body.
 2. Tape an **A4 sheet landscape** (long side left to right), with its top-left
    corner just under the pen.
-3. Put the pen in the holder. Press **pen down**: the tip should just touch the paper.
-   If it doesn't, raise **down height** (for example 60 → 70) and press **pen down** again.
-   Then press **pen up**.
+3. Put the pen in the holder. Press **pen up**, then **pen down**.
+   - If **pen up** lowers the pen and **pen down** lifts it, tick **Reverse pen direction**
+     (under the two buttons) and try again. This is common on AxiDraw-compatible
+     clones. PenPilot remembers the setting.
+   - On **pen down** the tip should just touch the paper. If it doesn't, raise
+     **down height** (for example 60 → 70) and press **pen down** again. Then press **pen up**.
 
 ## 4. Plot
 
 1. Drag `samples/penpilot-test.svg` into the PenPilot window (or press **Upload SVG**).
+   For now only **SVG drawings** work. Photos (JPG/PNG) come in build step 3, and PenPilot
+   will say so if you drop one.
    You'll see a rounded frame, a circle, a star and a zig-zag. The time estimate
    should say about **45 s**.
 2. Press **Plot**. Keep a hand near the plotter. **Pause** and **Cancel** work at any time.

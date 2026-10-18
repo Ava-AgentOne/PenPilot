@@ -19,6 +19,8 @@ is in [`PLAN.md`](PLAN.md).
   - the plotter doesn't answer (another program has it open);
   - the firmware is older than 2.5.3. On Windows, **Update firmware** opens the official updater (firmware 3.1.7);
   - the motor power adapter isn't plugged in.
+- **Reverse pen direction** tick-box for pen-lift motors that move the other way (common on AxiDraw-compatible clones). Pause, cancel and the pen lift before the first move all respect it.
+- A clear message when a file can't be plotted (a photo, an SVG with no lines), instead of hanging on "Loading file...".
 - Everything saxi already does: drop in an SVG, choose paper (A4 landscape by default) and margins, preview with time estimate, pen up/down heights, plot, pause, resume and cancel.
 
 ## Installing

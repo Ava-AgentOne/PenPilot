@@ -256,7 +256,9 @@ export async function startServer(
         await Promise.race([plotter.executeMotion(motion, [motionIdx, plan.motions.length]), abortPromise]);
 
         if (motion instanceof PenMotion) {
-          penIsUp = motion.initialPos < motion.finalPos;
+          // PenPilot: compare with the plan's pen-up position; "up" isn't always
+          // the larger servo value (reversed pen-lift motors).
+          penIsUp = motion.finalPos === firstPenMotion.initialPos;
         }
 
         if (unpaused && penIsUp) {

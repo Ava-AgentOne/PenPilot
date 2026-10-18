@@ -141,7 +141,7 @@ function attemptRejigger(previousOptions: PlanOptions, newOptions: PlanOptions, 
     penDownHeight: previousOptions.penDownHeight,
   };
   if (serialize(previousOptions) === serialize(newOptionsWithOldPenHeights)) {
-    const device = Device(newOptions.hardware);
+    const device = Device(newOptions.hardware, newOptions.penLiftReversed);
     // The existing plan should be the same except for penup/pendown heights.
     return previousPlan.withPenHeights(
       device.penPctToPos(newOptions.penUpHeight),
@@ -222,11 +222,12 @@ const setPaths = (paths: Path[]): Action => {
 };
 
 function PenHeight({ state, driver }: { state: State; driver: BaseDriver }) {
-  const { penUpHeight, penDownHeight, hardware } = state.planOptions;
+  const { penUpHeight, penDownHeight, hardware, penLiftReversed } = state.planOptions;
   const dispatch = useContext(DispatchContext);
   const setPenUpHeight = (x: number) => dispatch({ type: "SET_PLAN_OPTION", value: { penUpHeight: x } });
   const setPenDownHeight = (x: number) => dispatch({ type: "SET_PLAN_OPTION", value: { penDownHeight: x } });
-  const device = Device(hardware);
+  const setPenLiftReversed = (x: boolean) => dispatch({ type: "SET_PLAN_OPTION", value: { penLiftReversed: x } });
+  const device = Device(hardware, penLiftReversed);
 
   const penUp = () => {
     const height = device.penPctToPos(penUpHeight);
@@ -268,6 +269,13 @@ function PenHeight({ state, driver }: { state: State; driver: BaseDriver }) {
           pen down
         </button>
       </div>
+      <label
+        className="pp-checkbox"
+        title="Tick this if pressing 'pen up' lowers the pen on your plotter. Common on AxiDraw-compatible clones."
+      >
+        <input type="checkbox" checked={penLiftReversed} onChange={(e) => setPenLiftReversed(e.target.checked)} />
+        Reverse pen direction
+      </label>
     </Fragment>
   );
 }
@@ -1106,22 +1114,56 @@ function Root() {
     return () => clearInterval(interval);
   }, [driver, state.connected]);
 
+  // PenPilot: say plainly when a file can't be plotted, instead of leaving
+  // "Loading file..." on screen (saxi's readSvg used to throw on non-SVG input).
+  const [fileMessage, setFileMessage] = useState<string | null>(null);
+
+  const loadSvgText = React.useCallback(
+    (text: string, name: string) => {
+      let paths: Path[];
+      try {
+        paths = readSvg(text);
+      } catch (e) {
+        console.error(e);
+        setFileMessage(`PenPilot couldn't read “${name}” as an SVG drawing.`);
+        return;
+      }
+      if (paths.length === 0) {
+        setFileMessage(`“${name}” has no lines for the pen to draw. It may contain only a picture.`);
+        return;
+      }
+      setFileMessage(null);
+      setPlan(null);
+      dispatch(setPaths(paths));
+    },
+    [setPlan],
+  );
+
   const handleFile = React.useCallback(
     (file: File) => {
+      const isSvg = file.type === "image/svg+xml" || /\.svg$/i.test(file.name);
+      if (!isSvg) {
+        setFileMessage(
+          `“${file.name}” is a picture, not a drawing. For now PenPilot plots SVG drawings only. Turning photos into pen lines comes in a later build step.`,
+        );
+        return;
+      }
       setIsLoadingFile(true);
-      setPlan(null);
-
       const reader = new FileReader();
       reader.onload = () => {
-        dispatch(setPaths(readSvg(reader.result as string)));
-        setIsLoadingFile(false);
+        try {
+          loadSvgText(reader.result as string, file.name);
+        } finally {
+          setIsLoadingFile(false);
+        }
       };
       reader.onerror = () => {
         setIsLoadingFile(false);
+        setFileMessage(`PenPilot couldn't open “${file.name}”.`);
       };
       reader.readAsText(file);
     },
-    [setPlan],
+    [loadSvgText],
   );
 
   useEffect(() => {
@@ -1141,9 +1183,8 @@ function Root() {
       document.body.classList.remove("dragover");
     };
     const onpaste = (e: ClipboardEvent) => {
-      e.clipboardData?.items[0].getAsString((s) => {
-        dispatch(setPaths(readSvg(s)));
-      });
+      const item = e.clipboardData?.items[0];
+      if (item?.kind === "string") item.getAsString((s) => loadSvgText(s, "the pasted text"));
     };
     document.body.addEventListener("drop", ondrop);
     document.body.addEventListener("dragover", ondragover);
@@ -1155,7 +1196,7 @@ function Root() {
       document.body.removeEventListener("dragleave", ondragleave);
       document.removeEventListener("paste", onpaste);
     };
-  }, [handleFile]);
+  }, [handleFile, loadSvgText]);
 
   // Each time new motion is started, save the start time
   // biome-ignore lint/correctness/useExhaustiveDependencies: currentMotionStartedTime should be re-set with each motion
@@ -1244,6 +1285,14 @@ function Root() {
             plan={plan}
           />
           <PlanLoader isPlanning={isPlanning} isLoadingFile={isLoadingFile} />
+          {fileMessage && (
+            <div className="pp-file-message" role="alert">
+              <span>{fileMessage}</span>
+              <button type="button" aria-label="Dismiss" onClick={() => setFileMessage(null)}>
+                ×
+              </button>
+            </div>
+          )}
           {showDragTarget && <DragTarget handleFile={handleFile} />}
         </div>
       </div>
@@ -1296,6 +1345,9 @@ function readSvg(svgString: string): Path[] {
   const doc = parser.parseFromString(svgString, "image/svg+xml");
 
   const svg = doc.querySelector("svg");
+  if (!svg || doc.querySelector("parsererror")) {
+    throw new Error("Not an SVG document");
+  }
   // flattenSVG relies on getCTM(), which returns null on elements that aren't
   // part of a rendered document. Without it, the viewBox -> width/height
   // scaling is lost and drawings with a viewBox come out the wrong size, so

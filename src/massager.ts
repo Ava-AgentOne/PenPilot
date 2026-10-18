@@ -18,7 +18,7 @@ const mmPerSvgUnit = mmPerInch / svgUnitsPerInch;
  */
 export function replan(inPaths: Path[], planOptions: PlanOptions): Plan {
   let paths: Vec2[][] = inPaths.map((path) => path.points);
-  const device = Device(planOptions.hardware);
+  const device = Device(planOptions.hardware, planOptions.penLiftReversed);
 
   // Rotate drawing around center of paper to handle plotting portrait drawings
   // along y-axis of plotter
