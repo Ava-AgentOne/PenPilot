@@ -13,6 +13,7 @@ PenPilot is free software under the **GNU Affero General Public License v3.0**
 | [Plotterfun](https://github.com/mitxela/plotterfun): photo → line-art styles | Tim Alex Jacobs (mitxela) and contributors | MIT |
 | [StackBlur](https://github.com/flozz/StackBlur), [Javascript-Voronoi](https://github.com/gorhill/Javascript-Voronoi) (used by Plotterfun) | Fabien Loison, Mario Klingemann; Raymond Hill | MIT |
 | [Work Sans](https://fonts.google.com/specimen/Work+Sans) font (via @fontsource) | Wei Huang | SIL OFL 1.1 |
+| [serialport](https://serialport.io) (macOS plotter connection) | Francis Gulotta and contributors | MIT |
 | [Electron](https://www.electronjs.org) desktop runtime | OpenJS Foundation and contributors | MIT (Chromium's licences are listed in `LICENSES.chromium.html`) |
 
 **Windows build only:** the EiBotBoard USB driver files and the official EBB firmware

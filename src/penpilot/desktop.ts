@@ -29,6 +29,18 @@ export interface PenPilotDesktop {
   installDriver(): Promise<ActionResult>;
   openFirmwareUpdater(): Promise<ActionResult>;
   openExternal(url: string): Promise<void>;
+  /** macOS only: talk to the plotter directly instead of via Web Serial. */
+  nativeSerial?: NativeSerial;
+}
+
+export interface NativeSerial {
+  list(): Promise<string[]>;
+  open(path: string): Promise<{ id: number; path: string }>;
+  write(id: number, bytes: Uint8Array): Promise<void>;
+  close(id: number): Promise<void>;
+  onData(fn: (id: number, bytes: Uint8Array) => void): () => void;
+  onClosed(fn: (id: number) => void): () => void;
+  onChanged(fn: (paths: string[]) => void): () => void;
 }
 
 declare global {

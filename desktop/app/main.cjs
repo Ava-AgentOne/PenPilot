@@ -236,6 +236,8 @@ app.whenReady().then(() => {
   setUpAppProtocol();
   setUpSerial(session.defaultSession);
   setUpIpc();
+  // macOS talks to the plotter directly (see native-serial.cjs for why).
+  if (process.platform === "darwin") require("./native-serial.cjs").setUpNativeSerial();
   createWindow();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

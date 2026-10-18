@@ -49,7 +49,6 @@ is in [`PLAN.md`](PLAN.md).
    - Double-click PenPilot. When macOS says it can't check it, press **Done**.
    - Open **System Settings → Privacy & Security**, scroll down, and press **Open Anyway** next to "PenPilot was blocked". Enter your password.
    - After that it opens normally. If you built it on this Mac yourself, you won't see the warning at all.
-3. **Possible one-time question about Bluetooth:** the first time PenPilot connects, macOS may ask whether it can use Bluetooth. PenPilot only uses USB, so either answer is fine. (macOS asks because the system's serial-port list also includes Bluetooth ports.)
 
 ### Windows 10 / 11
 
@@ -84,13 +83,18 @@ Pushing a tag like `v0.1.0` builds them too.
 | `electron-builder.yml` | Installer settings for both systems. |
 | `samples/penpilot-test.svg` | A small test drawing (about 45 seconds). |
 
-The app talks to the plotter over **Web Serial** inside Electron, so it has no native
-code to rebuild. The desktop shell grants access only to the AxiDraw's board
-(USB `04D8:FD92`, matched in `desktop/app/serial-match.cjs`). Normally it's
-pre-approved, so `getPorts()` finds it. On macOS, Chromium only pre-approves USB serial
-devices that report a USB serial number. If the OS sees the board but `getPorts()`
-doesn't, PenPilot approves it once through `requestPort()`, which the shell answers
-silently. That route is the one that can trigger the Bluetooth question.
+How PenPilot reaches the plotter (only ever the AxiDraw's board, USB `04D8:FD92`,
+matched in `desktop/app/serial-match.cjs`):
+
+- **macOS: direct USB serial** from the desktop shell (`desktop/app/native-serial.cjs`,
+  Node `serialport` with its prebuilt N-API driver), streamed to the UI over IPC
+  (`src/penpilot/native-port.ts`). Chromium's Web Serial isn't used on the Mac:
+  - The EiBotBoard reports no USB serial number, so Chromium never pre-approves it.
+  - Its port picker (and even its plug/unplug events) start macOS's Bluetooth stack on
+    the main thread. That froze the app until a Bluetooth permission prompt was
+    answered, once for every new build.
+- **Windows: Web Serial** inside Electron, with the board pre-approved by its Windows
+  device ID, so nothing appears on screen.
 
 ## Licence
 

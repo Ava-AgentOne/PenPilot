@@ -5,5 +5,8 @@
   "description": "Standalone app for the AxiDraw V3 pen plotter",
   "author": "Ava-AgentOne",
   "license": "AGPL-3.0-only",
-  "main": "main.cjs"
+  "main": "main.cjs",
+  "dependencies": {
+    "serialport": "13.0.0"
+  }
 }

@@ -11,4 +11,29 @@ contextBridge.exposeInMainWorld("penpilot", {
   installDriver: () => ipcRenderer.invoke("penpilot:install-driver"),
   openFirmwareUpdater: () => ipcRenderer.invoke("penpilot:open-firmware-updater"),
   openExternal: (url) => ipcRenderer.invoke("penpilot:open-external", url),
+  // macOS only: direct USB-serial access to the plotter (desktop/app/native-serial.cjs).
+  nativeSerial:
+    process.platform === "darwin"
+      ? {
+          list: () => ipcRenderer.invoke("penpilot:native-serial-list"),
+          open: (path) => ipcRenderer.invoke("penpilot:native-serial-open", path),
+          write: (id, bytes) => ipcRenderer.invoke("penpilot:native-serial-write", id, bytes),
+          close: (id) => ipcRenderer.invoke("penpilot:native-serial-close", id),
+          onData: (fn) => {
+            const h = (_e, id, bytes) => fn(id, bytes);
+            ipcRenderer.on("penpilot:native-serial-data", h);
+            return () => ipcRenderer.removeListener("penpilot:native-serial-data", h);
+          },
+          onClosed: (fn) => {
+            const h = (_e, id) => fn(id);
+            ipcRenderer.on("penpilot:native-serial-closed", h);
+            return () => ipcRenderer.removeListener("penpilot:native-serial-closed", h);
+          },
+          onChanged: (fn) => {
+            const h = (_e, paths) => fn(paths);
+            ipcRenderer.on("penpilot:native-serial-changed", h);
+            return () => ipcRenderer.removeListener("penpilot:native-serial-changed", h);
+          },
+        }
+      : undefined,
 });

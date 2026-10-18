@@ -11,6 +11,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { type BaseDriver, WebSerialDriver } from "../drivers.js";
 import type { Hardware } from "../ebb.js";
 import { desktop, isWindows } from "./desktop.js";
+import { type NativePlotterPort, openNativePlotter } from "./native-port.js";
 
 const EBB_VENDOR_ID = 0x04d8;
 const EBB_PRODUCT_ID = 0xfd92;
@@ -131,6 +132,18 @@ export function PlotterCheck({ driver, setDriver, hardware, busy }: Props) {
   driverRef.current = driver;
   const runningRef = useRef(false);
 
+  const showUnplugged = useCallback(() => {
+    setChecks({
+      ...freshChecks(),
+      usb: {
+        label: "Plotter plugged in by USB",
+        status: "fail",
+        detail: `The plotter was disconnected. ${NOT_FOUND_TIPS}`,
+      },
+    });
+    setOpen(true);
+  }, []);
+
   const run = useCallback(async () => {
     if (runningRef.current) return;
     runningRef.current = true;
@@ -147,21 +160,22 @@ export function PlotterCheck({ driver, setDriver, hardware, busy }: Props) {
       // 1. Is the plotter there?
       const current = driverRef.current;
       let ebbDriver = current instanceof WebSerialDriver && current.connected ? current : null;
-      const port = ebbDriver
-        ? null
-        : await findPlotterPort(() =>
-            show({
-              usb: {
-                ...next.usb,
-                status: "checking",
-                detail:
-                  desktop?.platform === "darwin"
-                    ? "Found it, asking macOS for access. If macOS asks about Bluetooth, either answer is fine: PenPilot only uses USB."
-                    : "Found it, asking for access…",
-              },
-            }),
+      // macOS talks to the plotter directly (desktop/app/native-serial.cjs);
+      // elsewhere through Web Serial.
+      const native = desktop?.nativeSerial;
+      let found: { kind: "web"; port: SerialPort } | { kind: "native"; path: string } | null = null;
+      if (!ebbDriver) {
+        if (native) {
+          const paths = await native.list().catch(() => [] as string[]);
+          found = paths[0] ? { kind: "native", path: paths[0] } : null;
+        } else {
+          const port = await findPlotterPort(() =>
+            show({ usb: { ...next.usb, status: "checking", detail: "Found it, asking for access…" } }),
           );
-      if (!ebbDriver && !port) {
+          found = port ? { kind: "web", port } : null;
+        }
+      }
+      if (!ebbDriver && !found) {
         let usb: CheckItem = {
           ...next.usb,
           status: "fail",
@@ -191,11 +205,26 @@ export function PlotterCheck({ driver, setDriver, hardware, busy }: Props) {
       show({ usb: { ...next.usb, status: "ok" }, talk: { ...next.talk, status: "checking" } });
 
       // 2. Can we talk to it?
-      if (!ebbDriver && port) {
+      if (!ebbDriver && found) {
+        let nativePort: NativePlotterPort | null = null;
         try {
-          ebbDriver = await withTimeout(WebSerialDriver.connect(port, hardware), CONNECT_TIMEOUT_MS);
+          if (found.kind === "native" && native) {
+            nativePort = await openNativePlotter(native, found.path);
+            const connected = await withTimeout(
+              WebSerialDriver.fromPort(nativePort, found.path, hardware),
+              CONNECT_TIMEOUT_MS,
+            );
+            nativePort.onClosed(() => {
+              connected.markDisconnected();
+              showUnplugged();
+            });
+            ebbDriver = connected;
+          } else if (found.kind === "web") {
+            ebbDriver = await withTimeout(WebSerialDriver.connect(found.port, hardware), CONNECT_TIMEOUT_MS);
+          }
         } catch (e) {
           console.error("Plotter connect failed", e);
+          nativePort?.close().catch(() => {});
           show({
             talk: {
               ...next.talk,
@@ -262,7 +291,7 @@ export function PlotterCheck({ driver, setDriver, hardware, busy }: Props) {
       void describeForTroubleshooting(driverRef.current).then(setTechDetails);
       if (allOk(next)) setTimeout(() => setOpen(false), 1200);
     }
-  }, [hardware, setDriver]);
+  }, [hardware, setDriver, showUnplugged]);
 
   // First check when the app opens.
   // biome-ignore lint/correctness/useExhaustiveDependencies: run once on mount
@@ -270,8 +299,24 @@ export function PlotterCheck({ driver, setDriver, hardware, busy }: Props) {
     void run();
   }, []);
 
-  // Plugging in or unplugging the plotter re-runs the check.
+  // macOS (direct connection): a plotter appearing re-runs the check.
   useEffect(() => {
+    const native = desktop?.nativeSerial;
+    if (!native) return;
+    return native.onChanged((paths) => {
+      if (paths.length > 0 && !driverRef.current?.connected && !busy) {
+        setOpen(true);
+        void run();
+      }
+    });
+  }, [busy, run]);
+
+  // Plugging in or unplugging the plotter re-runs the check (Web Serial).
+  // Not on macOS: there the direct connection reports plug/unplug, and merely
+  // listening to navigator.serial makes Chromium start its Bluetooth stack on
+  // the main thread, which freezes the app until macOS's Bluetooth prompt is answered.
+  useEffect(() => {
+    if (desktop?.nativeSerial) return;
     const onConnect = () => {
       if (!busy) {
         setOpen(true);

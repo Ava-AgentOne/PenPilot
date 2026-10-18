@@ -16,3 +16,4 @@ dist/
 
 # PenPilot desktop build output
 /desktop/app/ui/
+/desktop/app/node_modules/

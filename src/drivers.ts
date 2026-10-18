@@ -74,6 +74,22 @@ export class WebSerialDriver extends BaseDriver {
     return driver;
   }
 
+  /**
+   * PenPilot: a driver over any EBB byte-stream port (e.g. the desktop app's
+   * direct serial connection on macOS) instead of a Web Serial port.
+   */
+  public static async fromPort(port: EBBPort, name: string, hardware: Hardware = "v3"): Promise<WebSerialDriver> {
+    const ebb = await EBB.create(port, hardware);
+    const driver = new WebSerialDriver(ebb, name);
+    driver.connected = true;
+    return driver;
+  }
+
+  /** PenPilot: the port went away (unplugged) outside Web Serial's own events. */
+  public markDisconnected(): void {
+    this.handleDisconnection();
+  }
+
   private _name: string;
   public name(): string {
     return this._name;
