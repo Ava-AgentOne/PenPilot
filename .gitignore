@@ -3,3 +3,13 @@ dist/
 .eslintcache
 .vscode
 .DS_Store
+
+# Claude Projects hub: sync.py writes session transcripts into this folder.
+# Never commit them. (Leading slash = only at the repo root.)
+/Conversations/
+/_raw-sessions/
+/Terminal-Sessions.md
+/Runtime-AI-Calls.md
+
+# Electron build output
+/release/
