@@ -46,6 +46,10 @@ export interface PenPilotDesktop {
   saveFile?(path: string, text: string): Promise<FileResult>;
   /** Pick and read a PenPilot project (an Open dialog). */
   openProject?(): Promise<FileResult & { text?: string }>;
+  /** Projects double-clicked in Finder / Explorer before the UI was ready. */
+  takeOpenFiles?(): Promise<(FileResult & { text?: string })[]>;
+  /** Projects double-clicked while PenPilot is open. Returns a function to stop listening. */
+  onOpenFile?(fn: (file: FileResult & { text?: string }) => void): () => void;
   /** macOS only: talk to the plotter directly instead of via Web Serial. */
   nativeSerial?: NativeSerial;
 }

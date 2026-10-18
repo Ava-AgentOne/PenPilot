@@ -531,3 +531,46 @@ button.pp-small-button {
 .pp-add-shape-label { display: block; margin-bottom: 0.15rem; font-size: 11px; color: var(--purple-dark); }
 .pp-buttons.pp-buttons--3 { grid-template-columns: 1fr 1fr 1fr; column-gap: 4px; }
 .pp-shape-panel select { margin-bottom: 0.3rem; }
+
+/* ---- Welcome guide and Help (step 7) --------------------------------------------- */
+
+.pp-subtitle button.button-link.pp-help {
+  display: inline;
+  width: auto;
+  padding: 0;
+  font-size: 11px;
+  color: var(--purple);
+  text-decoration: underline;
+}
+.pp-overlay.pp-welcome-overlay { z-index: 200; }
+.pp-card.pp-welcome {
+  position: relative;
+  width: min(480px, 100%);
+  text-align: center;
+  color: var(--purple-dark);
+}
+.pp-welcome-icon { margin: 0.25rem 0 0.5rem; }
+.pp-welcome-body { min-height: 9.5rem; line-height: 1.5; text-align: left; }
+.pp-welcome-body p { margin: 0 0 0.75rem; }
+.pp-welcome-dots { display: flex; justify-content: center; gap: 6px; margin: 0.5rem 0 0.75rem; }
+.pp-welcome-dots span { width: 8px; height: 8px; border-radius: 50%; background: var(--purple-light); }
+.pp-welcome-dots span.pp-on { background: var(--purple); }
+.pp-welcome-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.pp-welcome .pp-welcome-buttons button { margin: 0; padding: 0.45rem; font-size: 15px; }
+.pp-welcome button.pp-welcome-close {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.6rem;
+  width: auto;
+  padding: 0 0.4rem;
+  border: none;
+  font-size: 20px;
+  line-height: 1;
+}
+.pp-welcome-version { margin-top: 0.75rem; font-size: 11px; color: var(--purple); }
+.pp-advanced-heading {
+  margin: 0.5rem 0 0.25rem;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--purple-dark);
+}

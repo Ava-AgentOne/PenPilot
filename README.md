@@ -10,7 +10,13 @@ is in [`PLAN.md`](PLAN.md).
 
 
 
-## What works now (build steps 1–6)
+## What works now (build steps 1–7)
+
+**Final polish (step 7):**
+- **App icon:** a plotter's pen carriage in white lines on purple, drawing a teal line (made by `desktop/scripts/make-icons.cjs`).
+- **Welcome guide** the first time PenPilot opens: home corner and paper, your pen, your page, Frame then Plot, saving. **Help** (under the PenPilot name) opens it again.
+- **Double-click a .penpilot project** in Finder or Explorer to open it. If PenPilot is already open, the project opens there (it asks first if the page has unsaved changes). Only one PenPilot runs at a time, so two copies never fight over the plotter.
+- **Plain wording:** the old "more" settings are now **advanced**, in plain words (line clean-up, movement, pen timing, plotter model). **reset these settings** no longer touches the paper, the plotter model or Reverse pen direction. **Motors off** lets you move the carriage by hand.
 
 **Projects and shapes (step 6, second half):**
 - **Save / Save as… / Open… / New** at the top of the panel (⌘S / Ctrl+S saves, ⌘O / Ctrl+O opens). A **.penpilot** project keeps the whole page: every drawing with its lines, place, size, fill and pen, photos with their pictures and style, text with its settings, the paper and margins, and the pens used. Opening it brings the page back exactly, without redrawing (so a random photo style looks the same). Pens the computer doesn't have yet come with the project. You can also drag a .penpilot file onto the window.
@@ -25,7 +31,7 @@ is in [`PLAN.md`](PLAN.md).
 - **Several pens on one page:** every drawing has a **drawn with** pen (new drawings get the pen chosen in the pens list). PenPilot plots one pen's drawings, parks the carriage in its home corner, chimes, bounces the Dock icon and shows **Put in ● Red gel pen**. Swap the pen and press **Continue**. Each pen draws with its own heights and speed. The plot section lists the pens in order, and **▲** moves a pen earlier.
 - **Split by colour:** an SVG with several line colours offers **Split into one drawing per colour**. Each colour becomes its own drawing in the same place, given the pen of the same colour if you have one.
 - **Continue after a stop:** **Stop** now always lifts the pen and drives back to the home corner. Afterwards PenPilot shows **Stopped after 152 of 480 lines** with a slider to pick the line to **continue from** (step back if the pen ran dry; finished lines show in teal). If that line needs a different pen, it asks for it first. **Pause** waits with the pen lifted, so you can swap a pen; the pen is lifted again before it carries on.
-- **Real line width preview:** lines show on screen as wide as each pen draws them, so hatching looks as dark as it will on paper (**more → Show lines at the pen's real width** to switch back to thin lines).
+- **Real line width preview:** lines show on screen as wide as each pen draws them, so hatching looks as dark as it will on paper (**advanced → Show lines at the pen's real width** to switch back to thin lines).
 
 **Hatch fill (step 5):**
 - Any drawing with **closed shapes** (a traced outline, an SVG of filled shapes, letters) gets a **fill** choice: **Hatch: lines**, **Hatch: cross-hatch** or **Concentric** (shrinking outlines). Shapes look solid on paper.

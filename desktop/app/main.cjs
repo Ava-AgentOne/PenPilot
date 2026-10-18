@@ -238,6 +238,39 @@ async function openProject(win) {
   return { ...remember(file), text };
 }
 
+// ---- Opening a project by double-clicking it ---------------------------------------
+//
+// macOS sends "open-file" (even at launch); Windows starts PenPilot with the
+// file's path as an argument, or -- when PenPilot is already open -- passes it
+// to the running copy ("second-instance"). The UI asks for files once it's
+// ready (take-open-files) and gets any later ones as "penpilot:open-file".
+
+const waitingFiles = [];
+let uiWantsFiles = false;
+
+function projectArg(argv) {
+  return argv.slice(1).find((a) => typeof a === "string" && a.toLowerCase().endsWith(".penpilot") && fs.existsSync(a));
+}
+
+async function readProjectFile(file) {
+  try {
+    const text = await fs.promises.readFile(file, "utf8");
+    return { ...remember(file), text };
+  } catch {
+    return { ok: false, name: path.basename(file), message: `PenPilot couldn't read “${path.basename(file)}”.` };
+  }
+}
+
+async function openFileFromSystem(file) {
+  const win = BrowserWindow.getAllWindows()[0];
+  if (win) {
+    if (win.isMinimized()) win.restore();
+    win.focus();
+  }
+  if (uiWantsFiles && win) win.webContents.send("penpilot:open-file", await readProjectFile(file));
+  else waitingFiles.push(file);
+}
+
 function setUpIpc() {
   ipcMain.handle("penpilot:info", () => ({
     platform: process.platform,
@@ -266,6 +299,11 @@ function setUpIpc() {
   );
   ipcMain.handle("penpilot:save-file", (_event, file, text) => saveFileTo(file, text));
   ipcMain.handle("penpilot:open-project", (event) => openProject(BrowserWindow.fromWebContents(event.sender)));
+  ipcMain.handle("penpilot:take-open-files", async () => {
+    uiWantsFiles = true;
+    const files = waitingFiles.splice(0);
+    return Promise.all(files.map(readProjectFile));
+  });
   ipcMain.handle("penpilot:open-external", (_event, url) => {
     if (typeof url === "string" && /^https:\/\//.test(url)) shell.openExternal(url);
   });
@@ -311,7 +349,34 @@ function createWindow() {
   win.loadURL("app://penpilot/index.html");
 }
 
+// One PenPilot at a time: two copies would fight over the plotter. A second
+// launch (e.g. double-clicking a project on Windows) hands over to this one.
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
+  app.quit();
+} else {
+  app.on("second-instance", (_event, argv) => {
+    const file = projectArg(argv);
+    if (file) openFileFromSystem(file);
+    else {
+      const win = BrowserWindow.getAllWindows()[0];
+      if (win) {
+        if (win.isMinimized()) win.restore();
+        win.focus();
+      }
+    }
+  });
+  const atLaunch = projectArg(process.argv);
+  if (atLaunch) waitingFiles.push(atLaunch);
+}
+app.on("open-file", (event, file) => {
+  event.preventDefault();
+  if (app.isReady()) openFileFromSystem(file);
+  else waitingFiles.push(file);
+});
+
 app.whenReady().then(() => {
+  if (!gotLock) return; // another PenPilot is already open
   setUpAppProtocol();
   setUpSerial(session.defaultSession);
   setUpIpc();

@@ -15,6 +15,12 @@ contextBridge.exposeInMainWorld("penpilot", {
   saveFileAs: (kind, name, text) => ipcRenderer.invoke("penpilot:save-file-as", kind, name, text),
   saveFile: (file, text) => ipcRenderer.invoke("penpilot:save-file", file, text),
   openProject: () => ipcRenderer.invoke("penpilot:open-project"),
+  takeOpenFiles: () => ipcRenderer.invoke("penpilot:take-open-files"),
+  onOpenFile: (fn) => {
+    const h = (_e, file) => fn(file);
+    ipcRenderer.on("penpilot:open-file", h);
+    return () => ipcRenderer.removeListener("penpilot:open-file", h);
+  },
   // macOS only: direct USB-serial access to the plotter (desktop/app/native-serial.cjs).
   nativeSerial:
     process.platform === "darwin"

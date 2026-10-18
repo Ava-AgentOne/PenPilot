@@ -28,6 +28,14 @@ asar: true
 # The app has no native modules (it talks to the plotter over Web Serial).
 npmRebuild: false
 
+# Double-clicking a .penpilot project opens it in PenPilot.
+fileAssociations:
+  - ext: penpilot
+    name: PenPilot project
+    description: PenPilot project
+    role: Editor
+    mimeType: application/x-penpilot
+
 extraResources:
   - from: LICENSE
     to: LICENSE-PenPilot-AGPL-3.0.txt

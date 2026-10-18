@@ -18,8 +18,6 @@ import "./style.css";
 import "./penpilot/penpilot.css";
 import { type BaseDriver, type DeviceInfo, SaxiDriver, WebSerialDriver } from "./drivers.js";
 import type { Hardware } from "./ebb.js";
-import pathJoinRadiusIcon from "./icons/path-joining radius.svg";
-import pointJoinRadiusIcon from "./icons/point-joining radius.svg";
 import { desktop } from "./penpilot/desktop.js";
 import { framePlan } from "./penpilot/frame.js";
 import { loadPaperSizes, type SavedPaperSize, sameSize, savePaperSizes } from "./penpilot/paper-sizes.js";
@@ -46,6 +44,7 @@ import { usePhotoRenderer } from "./penpilot/photo-renderer.js";
 import { usePenText } from "./penpilot/text-renderer.js";
 import { PlotterCheck } from "./penpilot/plotter-check.js";
 import { downloadText, ProjectBar } from "./penpilot/project-bar.js";
+import { WelcomeGuide, welcomeSeen } from "./penpilot/welcome.js";
 import { fileBaseName, PROJECT_EXTENSION, pageToSvg, projectFromText, projectToText } from "./penpilot/project.js";
 import {
   cleanPen,
@@ -273,8 +272,8 @@ function HardwareOptions({ state, driver }: { state: State; driver: BaseDriver |
 
   return (
     <div>
-      <label title="Hardware model (affects servo and motor settings)">
-        Hardware:
+      <label title="Which plotter this is (it sets the pen-lift motor and step sizes)">
+        Plotter model:
         <select
           value={currentHardware}
           onChange={(e) => handleHardwareChange(e.target.value as Hardware)}
@@ -310,7 +309,7 @@ function OriginOptions({ state }: { state: State }) {
   return (
     <div className="flex">
       <label title="Starting and final position of pen when plotting (x)">
-        home x (mm):
+        pen home x (mm):
         <input
           type="number"
           min="0"
@@ -326,7 +325,7 @@ function OriginOptions({ state }: { state: State }) {
         />
       </label>
       <label title="Starting and final position of pen when plotting (y)">
-        home y (mm):
+        pen home y (mm):
         <input
           type="number"
           min="0"
@@ -462,7 +461,7 @@ function MotorControl({ driver }: { driver: BaseDriver }) {
   return (
     <div>
       <button type="button" onClick={() => driver.limp()}>
-        disengage motors
+        Motors off (move the carriage by hand)
       </button>
     </div>
   );
@@ -472,7 +471,7 @@ function PlanStatistics({ plan }: { plan: Plan | null }) {
   const totalDuration = useMemo(() => (plan ? plan.duration() : 0), [plan]);
   return (
     <div className="duration">
-      <div>Duration</div>
+      <div>Plot time</div>
       <div>
         <strong>{totalDuration > 0 ? formatDuration(totalDuration) : "-"}</strong>
       </div>
@@ -513,7 +512,7 @@ function TimeLeft({
   const duration = plan.duration(progress);
   return (
     <div className="duration">
-      <div>Time remaining</div>
+      <div>Time left</div>
       <div>
         <strong>{formatDuration(duration - currentMotionTimeSpent)}</strong>
       </div>
@@ -523,7 +522,7 @@ function TimeLeft({
 
 function PlanLoader({ isLoadingFile, isPlanning }: { isLoadingFile: boolean; isPlanning: boolean }) {
   if (isLoadingFile || isPlanning) {
-    return <div className="preview-loader">{isLoadingFile ? "Loading file..." : "Replanning..."}</div>;
+    return <div className="preview-loader">{isLoadingFile ? "Opening…" : "Working out the plot…"}</div>;
   }
 
   return null;
@@ -551,7 +550,7 @@ function LayerSelector({ state }: { state: State }) {
   return (
     <div>
       <label>
-        layers
+        {layerMode === "group" ? "drawings to plot" : "line colours to plot"} (hold ⌘ or Ctrl to pick several)
         <select
           className="layer-select"
           multiple={true}
@@ -593,7 +592,7 @@ function PlotButtons({
     <div>
       {isPlanning ? (
         <button type="button" disabled={true}>
-          Replanning...
+          Working out the plot…
         </button>
       ) : (
         <button
@@ -627,17 +626,35 @@ function PlotButtons({
   );
 }
 
+/**
+ * PenPilot: put the advanced settings back as they came. (Not the paper, the
+ * plotter model or Reverse pen direction: those belong to this plotter.)
+ */
 function ResetToDefaultsButton() {
   const dispatch = useContext(DispatchContext);
   const onClick = () => {
-    // Clear all user settings that have been saved and reset to the defaults
-    window.localStorage.removeItem("planOptions");
-    dispatch({ type: "SET_PLAN_OPTION", value: { ...defaultPlanOptions } });
+    const d = defaultPlanOptions;
+    dispatch({
+      type: "SET_PLAN_OPTION",
+      value: {
+        sortPaths: d.sortPaths,
+        pointJoinRadius: d.pointJoinRadius,
+        pathJoinRadius: d.pathJoinRadius,
+        minimumPathLength: d.minimumPathLength,
+        penDownAcceleration: d.penDownAcceleration,
+        penDownCorneringFactor: d.penDownCorneringFactor,
+        penUpAcceleration: d.penUpAcceleration,
+        penUpMaxVelocity: d.penUpMaxVelocity,
+        penLiftDuration: d.penLiftDuration,
+        penDropDuration: d.penDropDuration,
+        penHome: d.penHome,
+      },
+    });
   };
 
   return (
     <button type="reset" className="button-link" onClick={onClick}>
-      reset all options
+      reset these settings
     </button>
   );
 }
@@ -647,15 +664,19 @@ function PlanConfig({ state }: { state: State }) {
   return (
     <div>
       <form>
-        <label className="flex-checkbox" title="Re-order paths to minimize pen-up travel time">
+        <div className="pp-advanced-heading">Line clean-up</div>
+        <label className="flex-checkbox" title="Draw the lines in an order that keeps the pen's moves in the air short">
           <input
             type="checkbox"
             checked={state.planOptions.sortPaths}
             onChange={(e) => dispatch({ type: "SET_PLAN_OPTION", value: { sortPaths: !!e.target.checked } })}
           />
-          sort paths
+          reorder lines to save time
         </label>
-        <label className="flex-checkbox" title="Split into layers according to group ID, instead of stroke">
+        <label
+          className="flex-checkbox"
+          title="Choose what to plot by drawing. Untick to choose by line colour instead (the list appears under drawings)."
+        >
           <input
             type="checkbox"
             checked={state.planOptions.layerMode === "group"}
@@ -663,12 +684,12 @@ function PlanConfig({ state }: { state: State }) {
               dispatch({ type: "SET_PLAN_OPTION", value: { layerMode: e.target.checked ? "group" : "stroke" } })
             }
           />
-          layer by group
+          choose what to plot by drawing
         </label>
       </form>
-      <div className="horizontal-labels">
-        <label title="point-joining radius (mm)">
-          <img src={pointJoinRadiusIcon} alt="point-joining radius (mm)" />
+      <div className="pp-fields">
+        <label className="pp-field" title="Points of a line closer together than this are merged into one">
+          merge points closer than (mm)
           <input
             type="number"
             value={state.planOptions.pointJoinRadius}
@@ -677,8 +698,11 @@ function PlanConfig({ state }: { state: State }) {
             onChange={(e) => dispatch({ type: "SET_PLAN_OPTION", value: { pointJoinRadius: Number(e.target.value) } })}
           />
         </label>
-        <label title="path-joining radius (mm)">
-          <img src={pathJoinRadiusIcon} alt="path-joining radius (mm)" />
+        <label
+          className="pp-field"
+          title="Lines whose ends are closer than this are joined, so the pen doesn't lift between them"
+        >
+          join lines with ends closer than (mm)
           <input
             type="number"
             value={state.planOptions.pathJoinRadius}
@@ -689,8 +713,8 @@ function PlanConfig({ state }: { state: State }) {
         </label>
       </div>
       <div>
-        <label title="Remove paths that are shorter than this length (in mm)">
-          minimum path length
+        <label title="Lines shorter than this are left out (specks)">
+          skip lines shorter than (mm)
           <input
             type="number"
             value={state.planOptions.minimumPathLength}
@@ -701,9 +725,10 @@ function PlanConfig({ state }: { state: State }) {
             }
           />
         </label>
+        <div className="pp-advanced-heading">Movement</div>
         <div className="flex">
           <label title="Acceleration when the pen is down (in mm/s^2)">
-            down acc. (mm/s<sup>2</sup>)
+            acceleration while drawing (mm/s<sup>2</sup>)
             <input
               type="number"
               value={state.planOptions.penDownAcceleration}
@@ -716,7 +741,7 @@ function PlanConfig({ state }: { state: State }) {
           </label>
         </div>
         <label>
-          cornering factor
+          corner speed while drawing
           <input
             type="number"
             value={state.planOptions.penDownCorneringFactor}
@@ -729,7 +754,7 @@ function PlanConfig({ state }: { state: State }) {
         </label>
         <div className="flex">
           <label title="Acceleration when the pen is up (in mm/s^2)">
-            up acc. (mm/s<sup>2</sup>)
+            acceleration, pen up (mm/s<sup>2</sup>)
             <input
               type="number"
               value={state.planOptions.penUpAcceleration}
@@ -741,7 +766,7 @@ function PlanConfig({ state }: { state: State }) {
             />
           </label>
           <label title="Maximum velocity when the pen is up (in mm/s)">
-            up max vel. (mm/s)
+            speed, pen up (mm/s)
             <input
               type="number"
               value={state.planOptions.penUpMaxVelocity}
@@ -755,7 +780,7 @@ function PlanConfig({ state }: { state: State }) {
         </div>
         <div className="flex">
           <label title="How long the pen takes to lift (in seconds)">
-            pen lift duration (s)
+            time to lift the pen (s)
             <input
               type="number"
               value={state.planOptions.penLiftDuration}
@@ -767,7 +792,7 @@ function PlanConfig({ state }: { state: State }) {
             />
           </label>
           <label title="How long the pen takes to drop (in seconds)">
-            pen drop duration (s)
+            time to lower the pen (s)
             <input
               type="number"
               value={state.planOptions.penDropDuration}
@@ -1298,14 +1323,18 @@ function Root() {
 
   // ---- Projects: save, open, export ----
   const appVersion = useRef("dev");
+  const [version, setVersion] = useState<string | null>(null);
   useEffect(() => {
     desktop
       ?.info()
       .then((i) => {
         appVersion.current = i.version;
+        setVersion(i.version);
       })
       .catch(() => {});
   }, []);
+  // The welcome guide: on first opening, and from Help.
+  const [showWelcome, setShowWelcome] = useState(() => !welcomeSeen());
   const askToDiscard = () =>
     !dirty || page.items.length === 0 || window.confirm("Your page has changes that aren't saved. Carry on anyway?");
   const baseName = () => fileBaseName(projectFile?.name ?? page.items[0]?.name ?? "My page");
@@ -1364,6 +1393,33 @@ function Root() {
   };
   const openProjectFileRef = useRef(openProjectFile);
   openProjectFileRef.current = openProjectFile;
+  // Projects double-clicked in Finder / Explorer (desktop app).
+  const openFromSystem = useRef(
+    (_file: { ok: boolean; name?: string; path?: string; text?: string; message?: string }) => {},
+  );
+  openFromSystem.current = (file) => {
+    if (!file.ok || file.text === undefined) {
+      setFileMessage(file.message ?? "PenPilot couldn't open that project.");
+      return;
+    }
+    if (locked) {
+      setFileMessage(`Finish or stop the plot first, then open “${file.name}” again.`);
+      return;
+    }
+    if (!askToDiscard()) return;
+    void openProjectText(file.text, { name: file.name ?? "project", path: file.path });
+  };
+  useEffect(() => {
+    if (!desktop?.takeOpenFiles) return;
+    const stop = desktop.onOpenFile?.((f) => openFromSystem.current(f));
+    desktop
+      .takeOpenFiles()
+      .then((files) => {
+        for (const f of files) openFromSystem.current(f);
+      })
+      .catch(() => {});
+    return () => stop?.();
+  }, []);
   const projectInput = useRef<HTMLInputElement>(null);
   const openProject = async () => {
     if (locked || !askToDiscard()) return;
@@ -1491,7 +1547,12 @@ function Root() {
             <span className="red reg">Pen</span>
             <span className="teal">Pilot</span>
           </div>
-          <div className="pp-subtitle">based on saxi</div>
+          <div className="pp-subtitle">
+            based on saxi ·{" "}
+            <button type="button" className="button-link pp-help" onClick={() => setShowWelcome(true)}>
+              Help
+            </button>
+          </div>
           <ProjectBar
             fileName={projectFile?.name ?? null}
             dirty={unsaved}
@@ -1553,8 +1614,6 @@ function Root() {
               setPenLiftReversed={(v) => dispatch({ type: "SET_PLAN_OPTION", value: { penLiftReversed: v } })}
             />
             <MotorControl driver={driver} />
-            <HardwareOptions state={state} driver={driver} />
-            <ResetToDefaultsButton />
           </div>
           <div className="section-header">paper</div>
           <div className="section-body">
@@ -1596,11 +1655,13 @@ function Root() {
             <LayerSelector state={state} />
           </div>
           <details>
-            <summary className="section-header">more</summary>
+            <summary className="section-header">advanced</summary>
             <div className="section-body">
               <RealWidthOption value={trueWidth} onChange={setTrueWidth} />
               <PlanConfig state={state} />
               <OriginOptions state={state} />
+              <HardwareOptions state={state} driver={driver} />
+              <ResetToDefaultsButton />
             </div>
           </details>
           <div className="spacer" style={{ height: Math.max(350, plotBlockSize.height + 20) }} />
@@ -1697,6 +1758,7 @@ function Root() {
           )}
           {showDragTarget && <DragTarget handleFile={handleFile} />}
         </div>
+        {showWelcome && <WelcomeGuide version={version} onClose={() => setShowWelcome(false)} />}
       </div>
     </DispatchContext.Provider>
   );
