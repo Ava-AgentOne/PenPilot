@@ -120,10 +120,15 @@ type Props = {
   hardware: Hardware;
   /** True while a plot is running; checks are paused then. */
   busy: boolean;
+  /** Counts up when the menu bar's Help > Plotter check is chosen: open the check. */
+  openRequest?: number;
 };
 
-export function PlotterCheck({ driver, setDriver, hardware, busy }: Props) {
+export function PlotterCheck({ driver, setDriver, hardware, busy, openRequest = 0 }: Props) {
   const [open, setOpen] = useState(true);
+  useEffect(() => {
+    if (openRequest > 0) setOpen(true);
+  }, [openRequest]);
   const [running, setRunning] = useState(false);
   const [checks, setChecks] = useState<Checks>(freshChecks);
   const [message, setMessage] = useState<string | null>(null);
@@ -369,12 +374,15 @@ export function PlotterCheck({ driver, setDriver, hardware, busy }: Props) {
 
   return (
     <>
-      <div className={`pp-status ${healthy ? "pp-status--ok" : connected ? "pp-status--warn" : "pp-status--off"}`}>
+      <button
+        type="button"
+        className={`pp-status pp-status-chip ${healthy ? "pp-status--ok" : connected ? "pp-status--warn" : "pp-status--off"}`}
+        disabled={busy}
+        onClick={() => setOpen(true)}
+        title="Open the Plotter check"
+      >
         <span className="pp-dot" />
-        {healthy ? "Plotter ready" : connected ? "Plotter connected, needs attention" : "Plotter not connected"}
-      </div>
-      <button type="button" disabled={busy} onClick={() => setOpen(true)}>
-        Plotter check
+        {healthy ? "Plotter ready" : connected ? "Plotter needs attention" : "Plotter not connected"}
       </button>
 
       {open && (

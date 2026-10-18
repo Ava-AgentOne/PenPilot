@@ -16,6 +16,11 @@ contextBridge.exposeInMainWorld("penpilot", {
   saveFile: (file, text) => ipcRenderer.invoke("penpilot:save-file", file, text),
   openProject: () => ipcRenderer.invoke("penpilot:open-project"),
   takeOpenFiles: () => ipcRenderer.invoke("penpilot:take-open-files"),
+  onMenu: (fn) => {
+    const h = (_e, command) => fn(command);
+    ipcRenderer.on("penpilot:menu", h);
+    return () => ipcRenderer.removeListener("penpilot:menu", h);
+  },
   onOpenFile: (fn) => {
     const h = (_e, file) => fn(file);
     ipcRenderer.on("penpilot:open-file", h);

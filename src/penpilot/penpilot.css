@@ -427,9 +427,6 @@ button.pp-small-button {
   cursor: pointer;
 }
 .pp-pens { margin-bottom: 0.25rem; }
-.pp-pen-buttons { margin-top: 0.15rem; }
-.pp-pen-card .pp-pen-buttons button { margin-bottom: 0.3rem; }
-.pp-pen-card button.pp-test-button { margin-bottom: 0.3rem; padding: 0.3rem; font-size: 12px; }
 .pp-item-pen { margin-top: 0.25rem; }
 .pp-item-pen .pp-pen-pick { margin-top: 0.15rem; }
 .pp-pen-change-title .pp-swatch { width: 18px; height: 18px; margin: 0 0.4rem; }
@@ -574,3 +571,127 @@ button.pp-small-button {
   font-weight: 700;
   color: var(--purple-dark);
 }
+
+/* ---- Tidier side panel (step 7) ----------------------------------------------------- */
+
+.pp-header { position: relative; }
+.control-panel button.pp-help {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.75rem;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 50%;
+  font-size: 14px;
+  line-height: 1;
+}
+.pp-project { margin: -0.25rem 1rem 0.35rem; text-align: center; }
+.pp-project .pp-project-name { margin-top: 0.15rem; }
+.pp-file-menu { display: inline-block; }
+.pp-project .pp-file-menu > button { width: auto; padding: 0.2rem 0.75rem; font-size: 12px; }
+
+button.pp-status.pp-status-chip {
+  width: 100%;
+  margin: 0.25rem 0 0.5rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 999px;
+  font-size: 13px;
+}
+.pp-status-chip.pp-status--ok { border-color: var(--teal); background: var(--teal-light); }
+.pp-status-chip.pp-status--warn { border-color: #c08a2b; background: #fbf3e4; }
+.pp-status-chip.pp-status--off { border-color: var(--red); background: #fbecec; }
+
+/* Folding sections */
+.pp-fold { border-top: 1px solid var(--purple-light); }
+.pp-fold:last-of-type { border-bottom: 1px solid var(--purple-light); }
+.control-panel button.pp-fold-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.6rem 1rem;
+  border: none;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  margin: 0;
+  text-align: left;
+  font-size: 15px;
+}
+.control-panel button.pp-fold-head:hover { background: var(--purple-light); }
+.pp-fold-title { flex: 0 0 auto; font-weight: 900; color: var(--purple-dark); }
+.pp-fold-summary {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 400;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--purple);
+}
+.pp-fold-chevron {
+  flex: 0 0 auto;
+  margin-left: auto;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--purple);
+  transition: transform 0.15s;
+}
+.pp-fold--open > .pp-fold-head .pp-fold-chevron { transform: rotate(90deg); }
+.pp-fold-body { padding: 0 1rem 0.75rem; }
+.pp-fold--sub { margin: 0.25rem 0; border: 1px solid var(--purple-light); border-radius: 6px; }
+.pp-fold--sub:last-of-type { border-bottom: 1px solid var(--purple-light); }
+.control-panel .pp-fold--sub > button.pp-fold-head { padding: 0.35rem 0.6rem; font-size: 12px; }
+.pp-fold--sub .pp-fold-title { font-weight: 700; }
+.pp-fold--sub > .pp-fold-body { padding: 0 0.6rem 0.5rem; }
+
+/* Menus */
+.pp-menu-button { position: relative; }
+.pp-menu {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 2px);
+  left: 0;
+  min-width: 100%;
+  padding: 4px 0;
+  background: white;
+  border: 1px solid var(--purple-light);
+  border-radius: 6px;
+  box-shadow: 2px 4px 14px rgba(0, 0, 0, 0.12);
+  text-align: left;
+}
+.control-panel .pp-menu button {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0.35rem 0.75rem;
+  border: none;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  text-align: left;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.control-panel .pp-menu button:hover:not(:disabled) { background: var(--purple-light); }
+.control-panel .pp-menu button.pp-menu-sep { border-top: 1px solid var(--purple-light); }
+.pp-add { margin-bottom: 0.5rem; }
+.pp-info { margin-left: 0.25rem; cursor: help; color: var(--purple); }
+
+/* Pens */
+.pp-pen-actions { display: grid; grid-template-columns: 1fr 1fr 1.3fr; gap: 6px; margin-bottom: 0.35rem; }
+.control-panel .pp-pen-actions button { margin: 0; padding: 0.3rem 0.2rem; font-size: 12px; }
+.pp-pens .pp-pen-card { margin-top: 0.25rem; }
+.control-panel button.button-link.pp-motors-off { margin: 0.4rem 0 0; font-size: 11px; }
+
+/* Selected drawing */
+.control-panel button.button-link.pp-remove { margin: 0.4rem 0 0; font-size: 11px; color: #b04848; }
+
+/* Plot block */
+.pp-plot-row { display: grid; grid-template-columns: 1fr 1.6fr; gap: 8px; }
+.section-body__plot .pp-plot-row button { margin: 0; }
+.control-panel-bottom { border-top: 1px solid var(--purple-light); padding-top: 0.5rem; }
+.pp-checkbox.pp-frame-loop { margin: 0.35rem 0 0; }

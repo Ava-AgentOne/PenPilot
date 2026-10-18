@@ -16,7 +16,14 @@ is in [`PLAN.md`](PLAN.md).
 - **App icon:** a plotter's pen carriage in white lines on purple, drawing a teal line (made by `desktop/scripts/make-icons.cjs`).
 - **Welcome guide** the first time PenPilot opens: home corner and paper, your pen, your page, Frame then Plot, saving. **Help** (under the PenPilot name) opens it again.
 - **Double-click a .penpilot project** in Finder or Explorer to open it. If PenPilot is already open, the project opens there (it asks first if the page has unsaved changes). Only one PenPilot runs at a time, so two copies never fight over the plotter.
-- **Plain wording:** the old "more" settings are now **advanced**, in plain words (line clean-up, movement, pen timing, plotter model). **reset these settings** no longer touches the paper, the plotter model or Reverse pen direction. **Motors off** lets you move the carriage by hand.
+- **Plain wording:** the old "more" settings are now **Advanced**, in plain words (line clean-up, movement, pen timing, plotter model). **reset these settings** no longer touches the paper, the plotter model or Reverse pen direction. **Motors off** lets you move the carriage by hand.
+- **A tidier side panel:**
+  - New, Open, Save, Save as and Export SVG are in the **File menu** (menu bar), with ⌘N / ⌘O / ⌘S / ⇧⌘S / ⌘E (Ctrl on Windows). **Help** in the menu bar has the welcome guide and the Plotter check.
+  - **Pen**, **Paper**, **Drawings** and **Advanced** fold up, showing a one-line summary when closed (e.g. "A4 · landscape · 20 mm"). PenPilot remembers which are open.
+  - The plotter status is one small button ("● Plotter ready"); click it for the Plotter check.
+  - Pen: **Raise**, **Lower** and **Test square** in one row; heights, speed, width and colour under **Edit pen settings**; **+** adds a pen.
+  - Drawings: one **+ Add** menu (drawing or photo, text, rectangle, circle, border). A drawing's **Pen**, **Fill** and **Size and position** fold up too.
+  - Plot: **Frame** and **Plot** side by side; **Pause** and **Stop** appear only while plotting.
 
 **Projects and shapes (step 6, second half):**
 - **Save / Save as… / Open… / New** at the top of the panel (⌘S / Ctrl+S saves, ⌘O / Ctrl+O opens). A **.penpilot** project keeps the whole page: every drawing with its lines, place, size, fill and pen, photos with their pictures and style, text with its settings, the paper and margins, and the pens used. Opening it brings the page back exactly, without redrawing (so a random photo style looks the same). Pens the computer doesn't have yet come with the project. You can also drag a .penpilot file onto the window.

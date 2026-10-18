@@ -33,6 +33,7 @@ import {
 import { type Pen, penName } from "./pens.js";
 import { PenSwatch } from "./pens-panel.js";
 import { drawnLines } from "./plot-job.js";
+import { Fold, MenuButton } from "./panel-ui.js";
 import { MAX_SHAPE_LINES } from "./shapes.js";
 import type { FillInfo, FillKind } from "./hatch.js";
 import { MAX_DETAIL, MIN_DETAIL, PHOTO_STYLES, type PhotoConfig, TRACE_STYLES } from "./photo.js";
@@ -424,6 +425,13 @@ function sameColour(a: string, b: string): boolean {
   return na !== null && na === norm(b);
 }
 
+const FILL_NAMES: Record<FillKind, string> = {
+  none: "none",
+  lines: "lines",
+  cross: "cross-hatch",
+  concentric: "concentric",
+};
+
 export function DrawingsPanel({
   page,
   pageDispatch,
@@ -443,6 +451,7 @@ export function DrawingsPanel({
   const update = (item: PageItem) => pageDispatch({ type: "update", item });
   const overflowing = page.items.filter((it) => itemOverflows(it, drawable));
   const size = selected ? itemSize(selected) : null;
+  const fillable = selected ? itemDrawnPaths(selected).shapes > 0 || !!selected.fill : false;
 
   const resizeTo = (axis: "x" | "y", mm: number) => {
     if (!selected || !size || mm < MIN_SIZE_MM) return;
@@ -464,33 +473,23 @@ export function DrawingsPanel({
           e.target.value = "";
         }}
       />
-      <button type="button" disabled={locked} onClick={() => fileInput.current?.click()}>
-        Add drawing or photo…
-      </button>
-      <button type="button" disabled={locked} onClick={onAddText}>
-        Add text
-      </button>
-      <div className="pp-add-shape">
-        <span className="pp-add-shape-label">Add shape</span>
-        <div className="pp-buttons pp-buttons--3">
-          <button type="button" disabled={locked} onClick={() => onAddShape("rect")}>
-            Rectangle
-          </button>
-          <button type="button" disabled={locked} onClick={() => onAddShape("ellipse")}>
-            Circle
-          </button>
-          <button
-            type="button"
-            disabled={locked}
-            onClick={() => onAddShape("border")}
-            title="A double line round the page, just inside the margins"
-          >
-            Border
-          </button>
-        </div>
-      </div>
+      <MenuButton
+        className="pp-add"
+        label="+ Add"
+        disabled={locked}
+        items={[
+          { label: "Drawing or photo…", onSelect: () => fileInput.current?.click() },
+          { label: "Text", onSelect: onAddText },
+          { label: "Rectangle", onSelect: () => onAddShape("rect"), separator: true },
+          { label: "Circle", onSelect: () => onAddShape("ellipse") },
+          { label: "Border round the page", onSelect: () => onAddShape("border") },
+        ]}
+      />
       {page.items.length > 0 && (
-        <ul className="pp-item-list">
+        <ul
+          className="pp-item-list"
+          title="Drag a drawing to move it, drag its corner dot to resize. Arrow keys nudge, Delete removes."
+        >
           {page.items.map((it) => (
             <li key={it.id}>
               <button
@@ -506,6 +505,12 @@ export function DrawingsPanel({
             </li>
           ))}
         </ul>
+      )}
+      {overflowing.length > 0 && (
+        <div className="pp-warning">
+          Part of {overflowing.map((it) => `“${it.name}”`).join(", ")} is outside the area the plotter can draw, so
+          those lines will be cut off.
+        </div>
       )}
       {selected?.fillOnly && (
         <div className="pp-note pp-fill-only">
@@ -525,25 +530,6 @@ export function DrawingsPanel({
             </button>
           )}
         </div>
-      )}
-      {selected && (
-        <label className="pp-field pp-item-pen">
-          drawn with
-          <span className="pp-pen-pick">
-            <PenSwatch pen={penOf(selected)} />
-            <select
-              value={penOf(selected).id}
-              disabled={locked}
-              onChange={(e) => pageDispatch({ type: "pen", id: selected.id, penId: e.target.value })}
-            >
-              {pens.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {penName(p)}
-                </option>
-              ))}
-            </select>
-          </span>
-        </label>
       )}
       {selected && !selected.photo && !selected.text && strokeColours(selected).length > 1 && (
         <div className="pp-note">
@@ -565,52 +551,94 @@ export function DrawingsPanel({
           </button>
         </div>
       )}
-      {selected?.shape && <ShapePanel item={selected} pageDispatch={pageDispatch} locked={locked} />}
-      {selected?.photo && <PhotoPanel item={selected} pageDispatch={pageDispatch} locked={locked} />}
-      {selected?.text && <TextPanel item={selected} pageDispatch={pageDispatch} locked={locked} />}
-      {selected && <FillPanel item={selected} pageDispatch={pageDispatch} locked={locked} />}
       {selected && size && (
         <div className="pp-selected">
-          <div className="pp-fields">
-            <NumberField
-              label="x (mm)"
-              value={selected.x}
-              disabled={locked}
-              onChange={(x) => update({ ...selected, x })}
-            />
-            <NumberField
-              label="y (mm)"
-              value={selected.y}
-              disabled={locked}
-              onChange={(y) => update({ ...selected, y })}
-            />
-            <NumberField label="width (mm)" value={size.x} disabled={locked} onChange={(v) => resizeTo("x", v)} />
-            <NumberField label="height (mm)" value={size.y} disabled={locked} onChange={(v) => resizeTo("y", v)} />
-          </div>
-          <div className="pp-buttons">
-            <button type="button" disabled={locked} onClick={() => update(rotateItem(selected))}>
-              Turn 90°
-            </button>
-            <button type="button" disabled={locked} onClick={() => update(centreItem(selected, pageSize))}>
-              Centre
-            </button>
-            <button type="button" disabled={locked} onClick={() => update(fitItem(selected, pageSize, marginMm))}>
-              Fit page
-            </button>
-            <button type="button" disabled={locked} onClick={() => pageDispatch({ type: "remove", id: selected.id })}>
-              Remove
-            </button>
-          </div>
+          {selected.shape && <ShapePanel item={selected} pageDispatch={pageDispatch} locked={locked} />}
+          {selected.photo && <PhotoPanel item={selected} pageDispatch={pageDispatch} locked={locked} />}
+          {selected.text && <TextPanel item={selected} pageDispatch={pageDispatch} locked={locked} />}
+          <Fold
+            id="item-pen"
+            sub
+            defaultOpen={false}
+            title="Pen"
+            summary={
+              <>
+                <PenSwatch pen={penOf(selected)} />
+                {penName(penOf(selected))}
+              </>
+            }
+          >
+            <span className="pp-pen-pick">
+              <PenSwatch pen={penOf(selected)} />
+              <select
+                value={penOf(selected).id}
+                disabled={locked}
+                aria-label="Pen for this drawing"
+                onChange={(e) => pageDispatch({ type: "pen", id: selected.id, penId: e.target.value })}
+              >
+                {pens.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {penName(p)}
+                  </option>
+                ))}
+              </select>
+            </span>
+          </Fold>
+          {fillable && (
+            <Fold
+              id="item-fill"
+              sub
+              defaultOpen={false}
+              title="Fill"
+              summary={FILL_NAMES[selected.fill?.kind ?? "none"]}
+            >
+              <FillPanel item={selected} pageDispatch={pageDispatch} locked={locked} />
+            </Fold>
+          )}
+          <Fold
+            id="item-size"
+            sub
+            defaultOpen={false}
+            title="Size and position"
+            summary={`${round1(size.x)} × ${round1(size.y)} mm`}
+          >
+            <div className="pp-fields">
+              <NumberField
+                label="x (mm)"
+                value={selected.x}
+                disabled={locked}
+                onChange={(x) => update({ ...selected, x })}
+              />
+              <NumberField
+                label="y (mm)"
+                value={selected.y}
+                disabled={locked}
+                onChange={(y) => update({ ...selected, y })}
+              />
+              <NumberField label="width (mm)" value={size.x} disabled={locked} onChange={(v) => resizeTo("x", v)} />
+              <NumberField label="height (mm)" value={size.y} disabled={locked} onChange={(v) => resizeTo("y", v)} />
+            </div>
+            <div className="pp-buttons pp-buttons--3">
+              <button type="button" disabled={locked} onClick={() => update(rotateItem(selected))}>
+                Turn 90°
+              </button>
+              <button type="button" disabled={locked} onClick={() => update(centreItem(selected, pageSize))}>
+                Centre
+              </button>
+              <button type="button" disabled={locked} onClick={() => update(fitItem(selected, pageSize, marginMm))}>
+                Fit page
+              </button>
+            </div>
+          </Fold>
+          <button
+            type="button"
+            className="button-link pp-remove"
+            disabled={locked}
+            onClick={() => pageDispatch({ type: "remove", id: selected.id })}
+          >
+            Remove this drawing
+          </button>
         </div>
-      )}
-      {overflowing.length > 0 && (
-        <div className="pp-warning">
-          Part of {overflowing.map((it) => `“${it.name}”`).join(", ")} is outside the area the plotter can draw, so
-          those lines will be cut off.
-        </div>
-      )}
-      {page.items.length > 0 && (
-        <div className="pp-hint">Drag to move, drag the corner dot to resize. Arrow keys nudge, Delete removes.</div>
       )}
     </div>
   );

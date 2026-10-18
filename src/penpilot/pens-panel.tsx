@@ -7,6 +7,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import type { BaseDriver } from "../drivers.js";
 import type { Device } from "../planning.js";
+import { Fold } from "./panel-ui.js";
 import { newPen, type Pen, penName } from "./pens.js";
 
 export const PenSwatch = React.memo(function PenSwatch({ pen }: { pen: Pen }) {
@@ -68,8 +69,7 @@ export function PensPanel({
   testing,
   canTest,
   onTest,
-  penLiftReversed,
-  setPenLiftReversed,
+  onMotorsOff,
 }: {
   pens: Pen[];
   setPens: (pens: Pen[]) => void;
@@ -84,8 +84,7 @@ export function PensPanel({
   testing: boolean;
   canTest: boolean;
   onTest: (pen: Pen) => void;
-  penLiftReversed: boolean;
-  setPenLiftReversed: (v: boolean) => void;
+  onMotorsOff: () => void;
 }) {
   const pen = pens.find((p) => p.id === penId) ?? pens[0];
   // Where the pen was last sent, so changing a height moves it there live.
@@ -136,105 +135,107 @@ export function PensPanel({
             setPenId(p.id);
           }}
           title="Add another pen, starting from this pen's settings"
+          aria-label="New pen"
         >
-          New pen
+          +
         </button>
       </div>
-      <div className="pp-pen-card" style={{ borderLeftColor: pen.colour }}>
-        <div className="pp-pen-name">
-          <label className="pp-field">
-            name
-            <input type="text" value={pen.name} disabled={locked} onChange={(e) => update({ name: e.target.value })} />
-          </label>
-          <label className="pp-field pp-colour" title="The colour this pen's drawings show in on screen">
-            colour
-            <input
-              type="color"
-              value={pen.colour}
-              disabled={locked}
-              onChange={(e) => update({ colour: e.target.value })}
-            />
-          </label>
-        </div>
-        <div className="pp-fields">
-          <PenNumber
-            label="up height (%)"
-            value={pen.upHeight}
-            min={0}
-            max={100}
-            step={1}
-            disabled={locked}
-            onChange={(v) => update({ upHeight: v })}
-          />
-          <PenNumber
-            label="down height (%)"
-            value={pen.downHeight}
-            min={0}
-            max={100}
-            step={1}
-            disabled={locked}
-            onChange={(v) => update({ downHeight: v })}
-          />
-          <PenNumber
-            label="speed (mm/s)"
-            title="How fast the pen moves while drawing. Slow down for pens that skip or for thick ink."
-            value={pen.speed}
-            min={1}
-            max={500}
-            step={5}
-            disabled={locked}
-            onChange={(v) => update({ speed: v })}
-          />
-          <PenNumber
-            label="line width (mm)"
-            title="How wide this pen's line is on paper. Used for the on-screen preview."
-            value={pen.widthMm}
-            min={0.05}
-            max={10}
-            step={0.05}
-            disabled={locked}
-            onChange={(v) => update({ widthMm: v })}
-          />
-        </div>
-        <div className="pp-buttons pp-pen-buttons">
-          <button type="button" disabled={!canMovePen} onClick={() => move("up", pen.upHeight)}>
-            Raise pen
-          </button>
-          <button type="button" disabled={!canMovePen} onClick={() => move("down", pen.downHeight)}>
-            Lower pen
-          </button>
-        </div>
+      <div className="pp-pen-actions">
+        <button type="button" disabled={!canMovePen} onClick={() => move("up", pen.upHeight)}>
+          Raise
+        </button>
+        <button type="button" disabled={!canMovePen} onClick={() => move("down", pen.downHeight)}>
+          Lower
+        </button>
         <button
           type="button"
-          className="pp-test-button"
           disabled={!canTest}
           onClick={() => onTest(pen)}
-          title="Draw a small square in the corner of the paper by the pen's home position"
+          title="Draw a 10 mm square in the paper's corner, half filled: the filled half should look solid at the right line width"
         >
-          {testing ? "Drawing test square…" : "Test square"}
+          {testing ? "Testing…" : "Test square"}
         </button>
-        <div className="pp-hint">
-          After Lower pen, changing the heights moves the pen as you type. Test square draws a 10 mm square in the
-          paper's corner, half filled: the filled half should look solid at the right line width.
-        </div>
-        {pens.length > 1 && (
-          <button type="button" className="button-link pp-forget-size" disabled={locked} onClick={remove}>
-            remove “{penName(pen)}”
-          </button>
-        )}
       </div>
-      <label
-        className="pp-checkbox"
-        title="Tick this if pressing 'Raise pen' lowers the pen on your plotter. Common on AxiDraw-compatible clones."
+      <Fold id="pen-edit" sub defaultOpen={false} title="Edit pen settings">
+        <div className="pp-pen-card" style={{ borderLeftColor: pen.colour }}>
+          <div className="pp-pen-name">
+            <label className="pp-field">
+              name
+              <input
+                type="text"
+                value={pen.name}
+                disabled={locked}
+                onChange={(e) => update({ name: e.target.value })}
+              />
+            </label>
+            <label className="pp-field pp-colour" title="The colour this pen's drawings show in on screen">
+              colour
+              <input
+                type="color"
+                value={pen.colour}
+                disabled={locked}
+                onChange={(e) => update({ colour: e.target.value })}
+              />
+            </label>
+          </div>
+          <div className="pp-fields">
+            <PenNumber
+              label="up height (%)"
+              value={pen.upHeight}
+              min={0}
+              max={100}
+              step={1}
+              disabled={locked}
+              title="After Raise, changing this moves the pen as you type"
+              onChange={(v) => update({ upHeight: v })}
+            />
+            <PenNumber
+              label="down height (%)"
+              value={pen.downHeight}
+              min={0}
+              max={100}
+              step={1}
+              disabled={locked}
+              title="After Lower, changing this moves the pen as you type: stop when the tip just touches"
+              onChange={(v) => update({ downHeight: v })}
+            />
+            <PenNumber
+              label="speed (mm/s)"
+              title="How fast the pen moves while drawing. Slow down for pens that skip or for thick ink."
+              value={pen.speed}
+              min={1}
+              max={500}
+              step={5}
+              disabled={locked}
+              onChange={(v) => update({ speed: v })}
+            />
+            <PenNumber
+              label="line width (mm)"
+              title="How wide this pen's line is on paper. Used for the on-screen preview and the test square."
+              value={pen.widthMm}
+              min={0.05}
+              max={10}
+              step={0.05}
+              disabled={locked}
+              onChange={(v) => update({ widthMm: v })}
+            />
+          </div>
+          {pens.length > 1 && (
+            <button type="button" className="button-link pp-forget-size" disabled={locked} onClick={remove}>
+              remove “{penName(pen)}”
+            </button>
+          )}
+        </div>
+      </Fold>
+      <button
+        type="button"
+        className="button-link pp-motors-off"
+        disabled={!canMovePen}
+        onClick={onMotorsOff}
+        title="Turn the motors off so you can slide the carriage by hand (e.g. back to its home corner)"
       >
-        <input
-          type="checkbox"
-          checked={penLiftReversed}
-          disabled={locked}
-          onChange={(e) => setPenLiftReversed(e.target.checked)}
-        />
-        Reverse pen direction
-      </label>
+        Motors off (move the carriage by hand)
+      </button>
     </div>
   );
 }

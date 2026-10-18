@@ -52,13 +52,15 @@ import {
   loadSelectedPenId,
   type Pen,
   penById,
+  penName,
   savePens,
   saveSelectedPenId,
   testSquarePlan,
   testSquareSlots,
   withPen,
 } from "./penpilot/pens.js";
-import { ContinuePanel, chime, PenChangeCard, PensPanel, PlotPens } from "./penpilot/pens-panel.js";
+import { Fold } from "./penpilot/panel-ui.js";
+import { ContinuePanel, chime, PenChangeCard, PensPanel, PenSwatch, PlotPens } from "./penpilot/pens-panel.js";
 import { continuePlan, countBelow, drawnLines, partAt, penParts } from "./penpilot/plot-job.js";
 
 const defaultVisualizationOptions = {
@@ -346,6 +348,18 @@ function OriginOptions({ state }: { state: State }) {
 
 const MY_SIZE = "★ "; // marks the user's saved sizes in the paper list
 
+/** One line about the paper, for the folded Paper section: "A4 · landscape · 20 mm" (margin). */
+function paperSummary(po: PlanOptions): string {
+  const { size } = po.paperSize;
+  const same = (a: { x: number; y: number }) =>
+    (a.x === size.x && a.y === size.y) || (a.y === size.x && a.x === size.y);
+  const name =
+    Object.keys(PaperSize.standard).find((n) => same(PaperSize.standard[n].size)) ??
+    loadPaperSizes().find((m) => sameSize(m, size))?.name ??
+    `${Math.round(size.x)} × ${Math.round(size.y)} mm`;
+  return `${name} · ${po.paperSize.isLandscape ? "landscape" : "portrait"} · ${po.marginMm} mm`;
+}
+
 function PaperConfig({ state }: { state: State }) {
   const dispatch = useContext(DispatchContext);
   const landscape = state.planOptions.paperSize.isLandscape;
@@ -453,16 +467,6 @@ function PaperConfig({ state }: { state: State }) {
           onChange={(e) => dispatch({ type: "SET_PLAN_OPTION", value: { marginMm: Number(e.target.value) } })}
         />
       </label>
-    </div>
-  );
-}
-
-function MotorControl({ driver }: { driver: BaseDriver }) {
-  return (
-    <div>
-      <button type="button" onClick={() => driver.limp()}>
-        Motors off (move the carriage by hand)
-      </button>
     </div>
   );
 }
@@ -577,6 +581,9 @@ function PlotButtons({
   stopping,
   onPlot,
   onStop,
+  framing,
+  canFrame,
+  onFrame,
 }: {
   state: State;
   plan: Plan | null;
@@ -586,42 +593,53 @@ function PlotButtons({
   stopping: boolean;
   onPlot: () => void;
   onStop: () => void;
+  framing: boolean;
+  canFrame: boolean;
+  onFrame: () => void;
 }) {
   const plotting = state.progress !== null;
   return (
     <div>
-      {isPlanning ? (
-        <button type="button" disabled={true}>
-          Working out the plot…
-        </button>
-      ) : (
+      <div className="pp-plot-row">
         <button
           type="button"
-          className={`plot-button ${plotting ? "plot-button--plotting" : ""}`}
-          disabled={plan === null || !hasLines || plotting || !driver}
-          onClick={onPlot}
+          disabled={framing ? false : !canFrame}
+          onClick={onFrame}
+          title="Move the lifted pen around the area the drawing will cover, to line up the paper"
         >
-          {plotting ? (stopping ? "Stopping…" : "Plotting...") : "Plot"}
+          {framing ? "Stop frame" : "Frame"}
         </button>
-      )}
-      <div className={"button-row"}>
-        <button
-          type="button"
-          className={`cancel-button ${plotting ? "cancel-button--active" : ""}`}
-          onClick={() => (state.paused ? driver?.resume() : driver?.pause())}
-          disabled={plan === null || !plotting || stopping}
-        >
-          {state.paused ? "Resume" : "Pause"}
-        </button>
-        <button
-          type="button"
-          className={`cancel-button ${plotting ? "cancel-button--active" : ""}`}
-          onClick={onStop}
-          disabled={plan === null || !plotting || stopping}
-        >
-          Stop
-        </button>
+        {isPlanning ? (
+          <button type="button" disabled={true}>
+            Working…
+          </button>
+        ) : (
+          <button
+            type="button"
+            className={`plot-button ${plotting ? "plot-button--plotting" : ""}`}
+            disabled={plan === null || !hasLines || plotting || !driver}
+            onClick={onPlot}
+            title={isPlanning ? "Working out the plot" : undefined}
+          >
+            {plotting ? (stopping ? "Stopping…" : "Plotting…") : "Plot"}
+          </button>
+        )}
       </div>
+      {plotting && (
+        <div className={"button-row"}>
+          <button
+            type="button"
+            className="cancel-button cancel-button--active"
+            onClick={() => (state.paused ? driver?.resume() : driver?.pause())}
+            disabled={stopping}
+          >
+            {state.paused ? "Resume" : "Pause"}
+          </button>
+          <button type="button" className="cancel-button cancel-button--active" onClick={onStop} disabled={stopping}>
+            Stop
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -1335,6 +1353,8 @@ function Root() {
   }, []);
   // The welcome guide: on first opening, and from Help.
   const [showWelcome, setShowWelcome] = useState(() => !welcomeSeen());
+  // Help > Plotter check in the menu bar opens the check (counts up each time).
+  const [plotterCheckRequest, setPlotterCheckRequest] = useState(0);
   const askToDiscard = () =>
     !dirty || page.items.length === 0 || window.confirm("Your page has changes that aren't saved. Carry on anyway?");
   const baseName = () => fileBaseName(projectFile?.name ?? page.items[0]?.name ?? "My page");
@@ -1458,10 +1478,25 @@ function Root() {
     setStopped(null);
   };
 
-  // Keyboard: Cmd/Ctrl+S saves (with Shift: save as), Cmd/Ctrl+O opens.
+  // The desktop app's menu bar (File, Help).
+  const menuCommand = useRef((_command: string) => {});
+  menuCommand.current = (command) => {
+    if (command === "new") newPage();
+    else if (command === "open") void openProject();
+    else if (command === "save") void saveProject(false);
+    else if (command === "save-as") void saveProject(true);
+    else if (command === "export-svg") void exportSvg();
+    else if (command === "help") setShowWelcome(true);
+    else if (command === "plotter-check") setPlotterCheckRequest((n) => n + 1);
+  };
+  useEffect(() => desktop?.onMenu?.((command) => menuCommand.current(command)), []);
+
+  // Keyboard (browser only; the desktop menu bar has its own shortcuts):
+  // Cmd/Ctrl+S saves (with Shift: save as), Cmd/Ctrl+O opens.
   const shortcuts = useRef({ save: saveProject, open: openProject });
   shortcuts.current = { save: saveProject, open: openProject };
   useEffect(() => {
+    if (desktop?.onMenu) return;
     const onKey = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
       const k = e.key.toLowerCase();
@@ -1543,17 +1578,23 @@ function Root() {
     <DispatchContext.Provider value={dispatch}>
       <div className={`root ${state.connected ? "connected" : "disconnected"}`}>
         <div className="control-panel">
-          <div className={"saxi-title red"}>
-            <span className="red reg">Pen</span>
-            <span className="teal">Pilot</span>
-          </div>
-          <div className="pp-subtitle">
-            based on saxi ·{" "}
-            <button type="button" className="button-link pp-help" onClick={() => setShowWelcome(true)}>
-              Help
+          <div className="pp-header">
+            <div className={"saxi-title red"}>
+              <span className="red reg">Pen</span>
+              <span className="teal">Pilot</span>
+            </div>
+            <button
+              type="button"
+              className="pp-help"
+              onClick={() => setShowWelcome(true)}
+              title="Help: the welcome guide"
+              aria-label="Help"
+            >
+              ?
             </button>
           </div>
           <ProjectBar
+            inMenuBar={!!desktop?.onMenu}
             fileName={projectFile?.name ?? null}
             dirty={unsaved}
             hasItems={page.items.length > 0}
@@ -1586,7 +1627,13 @@ function Root() {
           )}
           {IS_WEB && desktop && (
             <div className="section-body">
-              <PlotterCheck driver={driver} setDriver={setDriver} hardware={state.planOptions.hardware} busy={locked} />
+              <PlotterCheck
+                driver={driver}
+                setDriver={setDriver}
+                hardware={state.planOptions.hardware}
+                busy={locked}
+                openRequest={plotterCheckRequest}
+              />
             </div>
           )}
           {IS_WEB && !desktop && (
@@ -1596,8 +1643,16 @@ function Root() {
               hardware={(driver as WebSerialDriver)?.ebb?.hardware ?? state.planOptions.hardware}
             />
           )}
-          <div className="section-header">pens</div>
-          <div className="section-body">
+          <Fold
+            id="pens"
+            title="Pen"
+            summary={
+              <>
+                <PenSwatch pen={penById(pens, penId)} />
+                {penName(penById(pens, penId))}
+              </>
+            }
+          >
             <PensPanel
               pens={pens}
               setPens={setPens}
@@ -1610,13 +1665,10 @@ function Root() {
               testing={sideJob === "test"}
               canTest={canMovePen && !plotting}
               onTest={startTest}
-              penLiftReversed={state.planOptions.penLiftReversed}
-              setPenLiftReversed={(v) => dispatch({ type: "SET_PLAN_OPTION", value: { penLiftReversed: v } })}
+              onMotorsOff={() => driver?.limp()}
             />
-            <MotorControl driver={driver} />
-          </div>
-          <div className="section-header">paper</div>
-          <div className="section-body">
+          </Fold>
+          <Fold id="paper" title="Paper" defaultOpen={false} summary={paperSummary(state.planOptions)}>
             <OrientationNotes
               isLandscape={state.planOptions.paperSize.isLandscape}
               onOrientation={(landscape) =>
@@ -1633,9 +1685,12 @@ function Root() {
               locked={locked}
             />
             <PaperConfig state={state} />
-          </div>
-          <div className="section-header">drawings</div>
-          <div className="section-body">
+          </Fold>
+          <Fold
+            id="drawings"
+            title="Drawings"
+            summary={page.items.length === 0 ? "none yet" : String(page.items.length)}
+          >
             <DrawingsPanel
               page={page}
               pageDispatch={editPage}
@@ -1653,37 +1708,31 @@ function Root() {
               }
             />
             <LayerSelector state={state} />
-          </div>
-          <details>
-            <summary className="section-header">advanced</summary>
-            <div className="section-body">
-              <RealWidthOption value={trueWidth} onChange={setTrueWidth} />
-              <PlanConfig state={state} />
-              <OriginOptions state={state} />
-              <HardwareOptions state={state} driver={driver} />
-              <ResetToDefaultsButton />
-            </div>
-          </details>
-          <div className="spacer" style={{ height: Math.max(350, plotBlockSize.height + 20) }} />
+          </Fold>
+          <Fold id="advanced" title="Advanced" defaultOpen={false}>
+            <RealWidthOption value={trueWidth} onChange={setTrueWidth} />
+            <label
+              className="pp-checkbox"
+              title="Tick this if pressing Raise lowers the pen on your plotter. Common on AxiDraw-compatible clones."
+            >
+              <input
+                type="checkbox"
+                checked={state.planOptions.penLiftReversed}
+                disabled={locked}
+                onChange={(e) => dispatch({ type: "SET_PLAN_OPTION", value: { penLiftReversed: e.target.checked } })}
+              />
+              Reverse pen direction
+            </label>
+            <PlanConfig state={state} />
+            <OriginOptions state={state} />
+            <HardwareOptions state={state} driver={driver} />
+            <ResetToDefaultsButton />
+          </Fold>
+          <div className="spacer" style={{ height: Math.max(200, plotBlockSize.height + 20) }} />
           <div className="control-panel-bottom" ref={plotBlock}>
-            <div className="section-header">plot</div>
             <div className="section-body section-body__plot">
               <PlanStatistics plan={plan} />
               <PlotPens used={usedPens} onEarlier={plotPenEarlier} locked={locked} />
-              <div className="pp-frame">
-                <button
-                  type="button"
-                  disabled={framing ? false : !connected || !frameBox || locked}
-                  onClick={framing ? stopFrame : startFrame}
-                  title="Move the lifted pen around the area the drawing will cover, to line up the paper"
-                >
-                  {framing ? "Stop frame" : "Frame"}
-                </button>
-                <label className="pp-checkbox pp-frame-loop" title="Keep going round until you press Stop frame">
-                  <input type="checkbox" checked={frameLoop} onChange={(e) => setFrameLoop(e.target.checked)} />
-                  keep going round
-                </label>
-              </div>
               <TimeLeft
                 plan={plan}
                 progress={state.progress}
@@ -1715,7 +1764,16 @@ function Root() {
                 stopping={stopping}
                 onPlot={startPlot}
                 onStop={stopPlot}
+                framing={framing}
+                canFrame={connected && !!frameBox && !locked}
+                onFrame={framing ? stopFrame : startFrame}
               />
+              {!plotting && (
+                <label className="pp-checkbox pp-frame-loop" title="Keep going round until you press Stop frame">
+                  <input type="checkbox" checked={frameLoop} onChange={(e) => setFrameLoop(e.target.checked)} />
+                  Frame keeps going round
+                </label>
+              )}
             </div>
           </div>
         </div>

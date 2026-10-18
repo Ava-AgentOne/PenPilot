@@ -6,7 +6,7 @@
 // sees a port picker. Everything runs in this one app: no Node.js, Python or
 // saxi server for the user to install.
 
-const { app, BrowserWindow, dialog, ipcMain, net, protocol, session, shell } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, session, shell } = require("electron");
 const { execFile, spawn } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -309,6 +309,52 @@ function setUpIpc() {
   });
 }
 
+// ---- Menu bar ---------------------------------------------------------------
+//
+// File actions live here (not in the side panel); each item tells the UI what
+// to do ("penpilot:menu"). Edit keeps copy/paste/undo working in text boxes.
+
+function setUpMenu() {
+  const mac = process.platform === "darwin";
+  const send = (command) => (_item, win) =>
+    (win ?? BrowserWindow.getAllWindows()[0])?.webContents.send("penpilot:menu", command);
+  const template = [
+    ...(mac ? [{ role: "appMenu" }] : []),
+    {
+      label: "File",
+      submenu: [
+        { label: "New", accelerator: "CmdOrCtrl+N", click: send("new") },
+        { label: "Open…", accelerator: "CmdOrCtrl+O", click: send("open") },
+        { type: "separator" },
+        { label: "Save", accelerator: "CmdOrCtrl+S", click: send("save") },
+        { label: "Save as…", accelerator: "Shift+CmdOrCtrl+S", click: send("save-as") },
+        { type: "separator" },
+        { label: "Export SVG…", accelerator: "CmdOrCtrl+E", click: send("export-svg") },
+        ...(mac ? [{ type: "separator" }, { role: "close" }] : [{ type: "separator" }, { role: "quit", label: "Exit" }]),
+      ],
+    },
+    { role: "editMenu" },
+    {
+      label: "View",
+      submenu: [{ role: "resetZoom" }, { role: "zoomIn" }, { role: "zoomOut" }, { type: "separator" }, { role: "togglefullscreen" }],
+    },
+    { role: "windowMenu" },
+    {
+      role: "help",
+      submenu: [
+        { label: "Welcome guide", click: send("help") },
+        { label: "Plotter check", click: send("plotter-check") },
+      ],
+    },
+  ];
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+  app.setAboutPanelOptions({
+    applicationName: "PenPilot",
+    applicationVersion: app.getVersion(),
+    credits: "Based on saxi by Jeremy Rose and contributors (AGPL-3.0).",
+  });
+}
+
 // ---- Window ----------------------------------------------------------------
 
 function createWindow() {
@@ -380,6 +426,7 @@ app.whenReady().then(() => {
   setUpAppProtocol();
   setUpSerial(session.defaultSession);
   setUpIpc();
+  setUpMenu();
   // macOS talks to the plotter directly (see native-serial.cjs for why).
   if (process.platform === "darwin") require("./native-serial.cjs").setUpNativeSerial();
   createWindow();

@@ -57,7 +57,7 @@ const PAGES: { title: string; body: React.ReactNode }[] = [
           PenPilot turns drawings, photos and text into pen lines and plots them on your AxiDraw. Here's how a plot
           goes, in five steps.
         </p>
-        <p>You can open this guide again any time with Help, under the PenPilot name.</p>
+        <p>You can open this guide again any time with the ? button, or Help in the menu bar.</p>
       </>
     ),
   },
@@ -66,7 +66,7 @@ const PAGES: { title: string; body: React.ReactNode }[] = [
     body: (
       <>
         <p>
-          Press <strong>Motors off</strong> (under pens), then slide the pen carriage by hand to its{" "}
+          Press <strong>Motors off</strong> (under Pen), then slide the pen carriage by hand to its{" "}
           <strong>home corner</strong>: the top-left corner of the area it can reach. PenPilot measures everything from
           there, and drives back there after every plot.
         </p>
@@ -82,12 +82,13 @@ const PAGES: { title: string; body: React.ReactNode }[] = [
     body: (
       <>
         <p>
-          In <strong>pens</strong>, press <strong>Lower pen</strong> and change the <strong>down height</strong> until
-          the tip just touches the paper. <strong>Test square</strong> draws a small square in the corner to check.
+          In <strong>Pen</strong>, press <strong>Lower</strong>, open <strong>Edit pen settings</strong> and change the{" "}
+          <strong>down height</strong> until the tip just touches the paper. <strong>Test square</strong> draws a small
+          square in the corner to check.
         </p>
         <p>
-          Press <strong>New pen</strong> to save each pen you own, with its own heights, speed and colour. Drawings can
-          use different pens: PenPilot stops and asks you to swap.
+          Press <strong>+</strong> to save each pen you own, with its own heights, speed and colour. Drawings can use
+          different pens: PenPilot stops and asks you to swap.
         </p>
       </>
     ),
@@ -96,9 +97,9 @@ const PAGES: { title: string; body: React.ReactNode }[] = [
     title: "3. Your page",
     body: (
       <p>
-        Under <strong>drawings</strong>, add a <strong>drawing or photo</strong> (pictures are traced into lines),{" "}
-        <strong>text</strong> (handwriting and Arabic fonts) or a <strong>shape</strong>. Drag to move, drag the corner
-        dot to resize. Closed shapes and letters can be <strong>filled</strong> with hatching.
+        Under <strong>Drawings</strong>, use <strong>+ Add</strong> for a drawing or photo (pictures are traced into
+        lines), text (handwriting and Arabic fonts) or a shape. Drag to move, drag the corner dot to resize. Closed
+        shapes and letters can be <strong>filled</strong> with hatching.
       </p>
     ),
   },
@@ -121,8 +122,8 @@ const PAGES: { title: string; body: React.ReactNode }[] = [
     title: "5. Save your work",
     body: (
       <p>
-        <strong>Save</strong> keeps the whole page as a project you can open again later (or double-click).{" "}
-        <strong>Export SVG</strong> saves the lines for other programs. Happy plotting!
+        <strong>File → Save</strong> keeps the whole page as a project you can open again later (or double-click).{" "}
+        <strong>File → Export SVG</strong> saves the lines for other programs. Happy plotting!
       </p>
     ),
   },

@@ -1,11 +1,13 @@
 /**
- * The project buttons at the top of the panel: New, Open, Save, Save as and
- * Export SVG, and the name of the project file the page belongs to.
+ * The project's name at the top of the panel, and (in a browser, where there's
+ * no menu bar) a File menu: New, Open, Save, Save as and Export SVG.
  */
 
 import React from "react";
+import { MenuButton } from "./panel-ui.js";
 
 export const ProjectBar = React.memo(function ProjectBar({
+  inMenuBar,
   fileName,
   dirty,
   hasItems,
@@ -16,6 +18,8 @@ export const ProjectBar = React.memo(function ProjectBar({
   onSaveAs,
   onExportSvg,
 }: {
+  /** The desktop app has these in its File menu; the panel then only shows the project's name. */
+  inMenuBar: boolean;
   fileName: string | null;
   dirty: boolean;
   hasItems: boolean;
@@ -26,36 +30,24 @@ export const ProjectBar = React.memo(function ProjectBar({
   onSaveAs: () => void;
   onExportSvg: () => void;
 }) {
-  const mac = navigator.platform.startsWith("Mac");
-  const key = (k: string) => (mac ? `⌘${k}` : `Ctrl+${k}`);
   let status: string | null = null;
-  if (fileName) status = dirty ? `${fileName} · changes not saved` : fileName;
+  if (fileName) status = dirty ? `${fileName} · not saved` : fileName;
   else if (dirty && hasItems) status = "Not saved yet";
   return (
     <div className="pp-project">
-      <div className="pp-project-buttons">
-        <button type="button" disabled={locked} onClick={onNew} title="Start a new, empty page">
-          New
-        </button>
-        <button type="button" disabled={locked} onClick={onOpen} title={`Open a PenPilot project (${key("O")})`}>
-          Open…
-        </button>
-        <button type="button" disabled={!hasItems} onClick={onSave} title={`Save this page as a project (${key("S")})`}>
-          Save
-        </button>
-        <button type="button" disabled={!hasItems} onClick={onSaveAs} title="Save a copy under another name">
-          Save as…
-        </button>
-        <button
-          type="button"
-          className="pp-span-2"
-          disabled={!hasItems}
-          onClick={onExportSvg}
-          title="Save the page's lines as an SVG drawing, one layer per pen"
-        >
-          Export SVG…
-        </button>
-      </div>
+      {!inMenuBar && (
+        <MenuButton
+          className="pp-file-menu"
+          label="File"
+          items={[
+            { label: "New", onSelect: onNew, disabled: locked },
+            { label: "Open…", onSelect: onOpen, disabled: locked },
+            { label: "Save", onSelect: onSave, disabled: !hasItems, separator: true },
+            { label: "Save as…", onSelect: onSaveAs, disabled: !hasItems },
+            { label: "Export SVG…", onSelect: onExportSvg, disabled: !hasItems, separator: true },
+          ]}
+        />
+      )}
       {status && (
         <div className={`pp-project-name${dirty ? " pp-project-name--unsaved" : ""}`} title={status}>
           {status}
