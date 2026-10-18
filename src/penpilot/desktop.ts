@@ -20,6 +20,12 @@ export interface PenPilotDesktop {
   platform: string;
   info(): Promise<{ platform: string; version: string; electron: string }>;
   windowsDeviceStatus(): Promise<WindowsDeviceStatus>;
+  /** Serial devices the desktop shell has been asked about (for troubleshooting). */
+  serialDevices(): Promise<{ id: string; name: string; via: string; isPlotter: boolean; raw: string }[]>;
+  /** Whether the OS itself sees an EiBotBoard on USB (null = couldn't tell). */
+  plotterPresent(): Promise<boolean | null>;
+  /** Grant the plotter's port via requestPort(); the shell picks it, no chooser. */
+  requestPlotterPort(): Promise<boolean>;
   installDriver(): Promise<ActionResult>;
   openFirmwareUpdater(): Promise<ActionResult>;
   openExternal(url: string): Promise<void>;

@@ -12,8 +12,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 
-const EBB_VENDOR_ID = 0x04d8;
-const EBB_PRODUCT_ID = 0xfd92;
+const { EBB_PRODUCT_ID, EBB_VENDOR_ID, isEBB, usbIds } = require("./serial-match.cjs");
 
 const UI_DIR = path.join(__dirname, "ui");
 // Windows-only helpers (driver + firmware updater) ship as extraResources.
@@ -25,19 +24,21 @@ protocol.registerSchemesAsPrivileged([
   { scheme: "app", privileges: { standard: true, secure: true, supportFetchAPI: true } },
 ]);
 
-// Electron reports USB ids as decimal strings ("1240"); be lenient about hex too.
-function parseUsbId(value) {
-  if (typeof value === "number") return value;
-  if (typeof value !== "string" || value === "") return Number.NaN;
-  return /^\d+$/.test(value) ? Number(value) : Number.parseInt(value, 16);
-}
-
-function isEBB(port) {
-  return (
-    port != null &&
-    parseUsbId(port.vendorId) === EBB_VENDOR_ID &&
-    parseUsbId(port.productId) === EBB_PRODUCT_ID
-  );
+// Every serial device Chromium has asked us about, for the Plotter check's
+// "Technical details" (helps diagnose a plotter that isn't recognised).
+const seenSerialDevices = new Map();
+function rememberSerialDevice(port, via) {
+  if (!port) return;
+  const { vendorId, productId } = usbIds(port);
+  const name = port.displayName || port.portName || port.name || "";
+  const hex = (n) => (Number.isNaN(n) ? "????" : n.toString(16).padStart(4, "0").toUpperCase());
+  seenSerialDevices.set(`${via}:${hex(vendorId)}:${hex(productId)}:${name}`, {
+    id: `${hex(vendorId)}:${hex(productId)}`,
+    name,
+    via,
+    isPlotter: isEBB(port),
+    raw: JSON.stringify(port),
+  });
 }
 
 function setUpSerial(ses) {
@@ -46,12 +47,17 @@ function setUpSerial(ses) {
   // which the Plotter check screen turns into "plotter not found".
   ses.on("select-serial-port", (event, portList, _webContents, callback) => {
     event.preventDefault();
+    for (const port of portList) rememberSerialDevice(port, "picker");
     const ebb = portList.find(isEBB);
     callback(ebb ? ebb.portId : "");
   });
   ses.setPermissionCheckHandler((_webContents, permission) => permission === "serial");
   // Lets navigator.serial.getPorts() see a plugged-in plotter without a click.
-  ses.setDevicePermissionHandler((details) => details.deviceType === "serial" && isEBB(details.device));
+  ses.setDevicePermissionHandler((details) => {
+    if (details.deviceType !== "serial") return false;
+    rememberSerialDevice(details.device, "pre-approval");
+    return isEBB(details.device);
+  });
 }
 
 // The UI only ever loads its own bundled files. The planner runs in a blob: worker.
@@ -82,6 +88,46 @@ function setUpAppProtocol() {
     headers.set("Content-Security-Policy", CONTENT_SECURITY_POLICY);
     return new Response(response.body, { status: response.status, headers });
   });
+}
+
+// ---- Finding the plotter ----------------------------------------------------
+
+// Is an EiBotBoard physically plugged in, according to the OS itself?
+// (Independent of Chromium's serial permissions; see requestPlotterPort.)
+function plotterPresent() {
+  if (process.platform === "darwin") {
+    return new Promise((resolve) => {
+      execFile("ioreg", ["-p", "IOUSB", "-l", "-w0"], { timeout: 10000, maxBuffer: 16 * 1024 * 1024 }, (error, stdout) => {
+        if (error) return resolve(null);
+        // ioreg prints one property block per USB device, starting at "+-o".
+        const blocks = String(stdout).split("+-o ");
+        resolve(
+          blocks.some(
+            (b) => b.includes(`"idVendor" = ${EBB_VENDOR_ID}`) && b.includes(`"idProduct" = ${EBB_PRODUCT_ID}`),
+          ),
+        );
+      });
+    });
+  }
+  if (process.platform === "win32") return windowsDeviceStatus().then((s) => (s.error ? null : !!s.present));
+  return Promise.resolve(null);
+}
+
+// Chromium only pre-approves (getPorts) a USB serial device on macOS when it
+// reports a USB serial number; an EiBotBoard without a nickname may not. In
+// that case grant it the way a browser would, via requestPort() -- answered by
+// our select-serial-port handler, so no chooser is shown. On macOS this can
+// trigger a one-time "use Bluetooth?" question, because Chromium also lists
+// Bluetooth serial ports; PenPilot doesn't need Bluetooth either way.
+async function requestPlotterPort(webContents) {
+  try {
+    return await webContents.executeJavaScript(
+      `navigator.serial.requestPort({ filters: [{ usbVendorId: ${EBB_VENDOR_ID}, usbProductId: ${EBB_PRODUCT_ID} }] }).then(() => true, () => false)`,
+      true,
+    );
+  } catch {
+    return false;
+  }
 }
 
 // ---- Windows helpers -------------------------------------------------------
@@ -148,6 +194,9 @@ function setUpIpc() {
     electron: process.versions.electron,
   }));
   ipcMain.handle("penpilot:windows-device-status", () => windowsDeviceStatus());
+  ipcMain.handle("penpilot:serial-devices", () => [...seenSerialDevices.values()]);
+  ipcMain.handle("penpilot:plotter-present", () => plotterPresent());
+  ipcMain.handle("penpilot:request-plotter-port", (event) => requestPlotterPort(event.sender));
   ipcMain.handle("penpilot:install-driver", () => installWindowsDriver());
   ipcMain.handle("penpilot:open-firmware-updater", () => openFirmwareUpdater());
   ipcMain.handle("penpilot:open-external", (_event, url) => {
