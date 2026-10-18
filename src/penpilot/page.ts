@@ -66,6 +66,8 @@ export interface PageItem {
   shape?: ShapeInfo;
   /** Opened from a project: its saved lines are current, so photos and text aren't redrawn on opening. */
   restored?: boolean;
+  /** Left out of Plot and Frame (its "plot" tick is off), e.g. because it's already on the paper. */
+  skip?: boolean;
 }
 
 // ---- What actually gets drawn ----------------------------------------------------
@@ -547,6 +549,10 @@ export type PageAction =
   | { type: "shape"; id: string; shape: Partial<ShapeInfo> }
   /** Replace the whole page (opening a project). */
   | { type: "load"; items: PageItem[] }
+  /** Tick or untick an item for plotting. */
+  | { type: "plot"; id: string; on: boolean }
+  /** Untick several items (e.g. the ones just plotted). */
+  | { type: "unplot"; ids: string[] }
   /** Set, change or (null) remove an item's hatch fill. */
   | { type: "fill"; id: string; fill: Partial<FillInfo> | null }
   /** Text settings (panel) and laid-out strokes (usePenText). */
@@ -577,6 +583,15 @@ export function pageReducer(page: Page, action: PageAction): Page {
       };
     case "load":
       return { items: action.items, selectedId: null };
+    case "plot":
+      return {
+        ...page,
+        items: page.items.map((it) => (it.id === action.id ? { ...it, skip: action.on ? undefined : true } : it)),
+      };
+    case "unplot": {
+      const ids = new Set(action.ids);
+      return { ...page, items: page.items.map((it) => (ids.has(it.id) ? { ...it, skip: true } : it)) };
+    }
     case "nudge":
       return {
         ...page,

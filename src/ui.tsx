@@ -532,46 +532,6 @@ function PlanLoader({ isLoadingFile, isPlanning }: { isLoadingFile: boolean; isP
   return null;
 }
 
-function LayerSelector({ state }: { state: State }) {
-  const dispatch = useContext(DispatchContext);
-
-  const { layerMode } = state.planOptions;
-  const layers = layerMode === "group" ? state.groupLayers : state.strokeLayers;
-  if (layers.length <= 1) {
-    return null;
-  }
-
-  const selectedLayers =
-    layerMode === "group" ? state.planOptions.selectedGroupLayers : state.planOptions.selectedStrokeLayers;
-  const layersChanged = (e: ChangeEvent<HTMLSelectElement>) => {
-    const selectedLayers = new Set([...e.target.selectedOptions].map((o) => o.value));
-    if (layerMode === "group") {
-      dispatch({ type: "SET_PLAN_OPTION", value: { selectedGroupLayers: selectedLayers } });
-    } else {
-      dispatch({ type: "SET_PLAN_OPTION", value: { selectedStrokeLayers: selectedLayers } });
-    }
-  };
-  return (
-    <div>
-      <label>
-        {layerMode === "group" ? "drawings to plot" : "line colours to plot"} (hold ⌘ or Ctrl to pick several)
-        <select
-          className="layer-select"
-          multiple={true}
-          value={[...selectedLayers]}
-          onChange={layersChanged}
-          size={3}
-          disabled={state.progress !== null}
-        >
-          {layers.map((layer) => (
-            <option key={layer}>{layer}</option>
-          ))}
-        </select>
-      </label>
-    </div>
-  );
-}
-
 function PlotButtons({
   state,
   plan,
@@ -690,19 +650,6 @@ function PlanConfig({ state }: { state: State }) {
             onChange={(e) => dispatch({ type: "SET_PLAN_OPTION", value: { sortPaths: !!e.target.checked } })}
           />
           reorder lines to save time
-        </label>
-        <label
-          className="flex-checkbox"
-          title="Choose what to plot by drawing. Untick to choose by line colour instead (the list appears under drawings)."
-        >
-          <input
-            type="checkbox"
-            checked={state.planOptions.layerMode === "group"}
-            onChange={(e) =>
-              dispatch({ type: "SET_PLAN_OPTION", value: { layerMode: e.target.checked ? "group" : "stroke" } })
-            }
-          />
-          choose what to plot by drawing
         </label>
       </form>
       <div className="pp-fields">
@@ -893,6 +840,8 @@ const PAGE_EDITS = new Set<PageAction["type"]>([
   "shape",
   "textSettings",
   "photoSettings",
+  "plot",
+  "unplot",
 ]);
 
 function Root() {
@@ -988,18 +937,24 @@ function Root() {
   usePhotoRenderer(pageItems, pageDispatch);
   usePenText(pageItems, pageDispatch);
   const lastGeometry = useRef<unknown[] | null>(null);
+  // The drawings in the current plan, and in the plot running now (for "untick what was just drawn").
+  const plannedIds = useRef<string[]>([]);
+  const runIds = useRef<string[]>([]);
+  const [justPlotted, setJustPlotted] = useState<string[] | null>(null);
   // biome-ignore lint/correctness/useExhaustiveDependencies(setPlan): React setters are stable
   useEffect(() => {
     const geometry: unknown[] = [layout.placement, pageSize, pens.map((p) => p.id).join()];
     for (const it of pageItems) {
-      geometry.push(it.id, it.name, it.paths, it.fill, it.x, it.y, it.scale, it.rotation, penOf(it).id);
+      geometry.push(it.id, it.name, it.paths, it.fill, it.x, it.y, it.scale, it.rotation, penOf(it).id, !!it.skip);
     }
     const last = lastGeometry.current;
     if (last && last.length === geometry.length && last.every((v, i) => v === geometry[i])) return;
     const timer = setTimeout(() => {
       lastGeometry.current = geometry;
       setStopped(null); // the drawings changed: "continue from line" no longer fits
-      const drawable = pageItems.filter((it) => it.paths.length > 0);
+      // Unticked drawings ("plot" off) stay on the page but aren't plotted.
+      const drawable = pageItems.filter((it) => it.paths.length > 0 && !it.skip);
+      plannedIds.current = drawable.map((it) => it.id);
       if (drawable.length === 0) {
         dispatch({ type: "CLEAR_PATHS" });
         setSegments(null);
@@ -1088,6 +1043,8 @@ function Root() {
   const startPlot = () => {
     if (!plan) return;
     setStopped(null);
+    setJustPlotted(null);
+    runIds.current = plannedIds.current;
     runPlot(plan);
   };
   const continuePlot = () => {
@@ -1095,6 +1052,8 @@ function Root() {
     const c = continuePlan(plan, continueFrom, state.planOptions, stopped.penId);
     if (!c) return;
     setStopped(null);
+    setJustPlotted(null);
+    runIds.current = plannedIds.current;
     runPlot(c.plan, c.toFull, stopped.penId);
   };
   const stopPlot = () => {
@@ -1106,7 +1065,13 @@ function Root() {
   // at the pen-up height of the pen the plot starts with.
   const firstPen = usedPens[0] ?? penById(pens, penId);
   const frameBox = useMemo(
-    () => drawingBoxOnMachine(page, layout.placement, pageSize, layout.drawable),
+    () =>
+      drawingBoxOnMachine(
+        { ...page, items: page.items.filter((it) => !it.skip) },
+        layout.placement,
+        pageSize,
+        layout.drawable,
+      ),
     [page, layout, pageSize],
   );
   const startFrame = () => {
@@ -1168,6 +1133,7 @@ function Root() {
         return;
       }
       setStopped(null);
+      setJustPlotted(runIds.current);
       dispatch({ type: "SET_PROGRESS", motionIdx: null });
     };
     driver.onpenchange = (id: string | null) => {
@@ -1707,7 +1673,6 @@ function Root() {
                 editPage({ type: "add", items: [withCurrentPen(newShapeItem(kind, pageSize, marginMm))] })
               }
             />
-            <LayerSelector state={state} />
           </Fold>
           <Fold id="advanced" title="Advanced" defaultOpen={false}>
             <RealWidthOption value={trueWidth} onChange={setTrueWidth} />
@@ -1754,6 +1719,25 @@ function Root() {
                   onContinue={continuePlot}
                   onForget={() => setStopped(null)}
                 />
+              )}
+              {justPlotted && !locked && page.items.some((it) => justPlotted.includes(it.id) && !it.skip) && (
+                <div className="pp-done-note">
+                  <div>Finished. Untick what was just drawn, so the next Plot only draws new things?</div>
+                  <div className="pp-buttons">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        editPage({ type: "unplot", ids: justPlotted });
+                        setJustPlotted(null);
+                      }}
+                    >
+                      Untick them
+                    </button>
+                    <button type="button" onClick={() => setJustPlotted(null)}>
+                      No thanks
+                    </button>
+                  </div>
+                </div>
               )}
               <PlotButtons
                 plan={plan}

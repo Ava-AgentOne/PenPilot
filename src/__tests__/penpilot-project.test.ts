@@ -174,6 +174,23 @@ describe("PenPilot projects", () => {
     expect(pageToSvg([], page, [black], () => black)).not.toContain("<g");
   });
 
+  it("keeps each drawing's plot tick, and unticks the ones just plotted", async () => {
+    const a = newShapeItem("rect", page, 20);
+    const b = newShapeItem("ellipse", page, 20);
+    const c = newShapeItem("border", page, 20);
+    let p = pageReducer(emptyPage, { type: "add", items: [a, b, c] });
+    p = pageReducer(p, { type: "plot", id: b.id, on: false });
+    expect(p.items.map((it) => !!it.skip)).toEqual([false, true, false]);
+    p = pageReducer(p, { type: "plot", id: b.id, on: true });
+    expect(p.items[1].skip).toBeUndefined();
+    p = pageReducer(p, { type: "unplot", ids: [a.id, c.id] });
+    expect(p.items.map((it) => !!it.skip)).toEqual([true, false, true]);
+    const back = await projectFromText(
+      await projectToText({ paper: { width: 297, height: 210, margin: 20 }, pens: [], items: p.items }, "test"),
+    );
+    expect(back.items.map((it) => !!it.skip)).toEqual([true, false, true]);
+  });
+
   it("makes safe file names", () => {
     expect(fileBaseName("“Hello”")).toBe("Hello");
     expect(fileBaseName("card.penpilot")).toBe("card");

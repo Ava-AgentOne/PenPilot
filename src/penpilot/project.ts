@@ -55,6 +55,7 @@ interface SavedItem {
   photo?: SavedPhoto;
   svgText?: string;
   fillOnly?: boolean;
+  skip?: boolean;
 }
 
 export interface Project {
@@ -93,6 +94,7 @@ export async function projectToText(project: Project, appVersion: string): Promi
       shape: it.shape,
       svgText: it.svgText,
       fillOnly: it.fillOnly,
+      skip: it.skip,
     };
     if (it.text) {
       const { error: _error, ...text } = it.text;
@@ -213,6 +215,7 @@ export async function projectFromText(text: string): Promise<Project> {
     if (it.shape) item.shape = it.shape;
     if (typeof it.svgText === "string") item.svgText = it.svgText;
     if (it.fillOnly) item.fillOnly = true;
+    if (it.skip) item.skip = true;
     if (it.photo) item.photo = await readPhoto(it.photo);
     items.push(item);
   }

@@ -24,6 +24,7 @@ is in [`PLAN.md`](PLAN.md).
   - Pen: **Raise**, **Lower** and **Test square** in one row; heights, speed, width and colour under **Edit pen settings**; **+** adds a pen.
   - Drawings: one **+ Add** menu (drawing or photo, text, rectangle, circle, border). A drawing's **Pen**, **Fill** and **Size and position** fold up too.
   - Plot: **Frame** and **Plot** side by side; **Pause** and **Stop** appear only while plotting.
+- **Choose what to plot:** each drawing in the list has a **tick**. Unticked drawings stay on the page (faint) but Plot and Frame leave them out, and the plot time only counts what will be drawn. After a plot finishes, **Untick them** unticks what was just drawn, so you can add text (or anything) and plot only the new part, lined up with what's already on the paper. Ticks are saved with the project. (This replaces saxi's "drawings to plot" list, which reset itself whenever anything changed.)
 
 **Projects and shapes (step 6, second half):**
 - **Save / Save as… / Open… / New** at the top of the panel (⌘S / Ctrl+S saves, ⌘O / Ctrl+O opens). A **.penpilot** project keeps the whole page: every drawing with its lines, place, size, fill and pen, photos with their pictures and style, text with its settings, the paper and margins, and the pens used. Opening it brings the page back exactly, without redrawing (so a random photo style looks the same). Pens the computer doesn't have yet come with the project. You can also drag a .penpilot file onto the window.

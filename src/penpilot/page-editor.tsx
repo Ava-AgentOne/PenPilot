@@ -64,19 +64,22 @@ function pathData(points: Vec2[]): string {
 const ItemLines = React.memo(function ItemLines({
   item,
   dimmed,
+  off,
   showPhoto,
   colour,
   widthMm,
 }: {
   item: PageItem;
   dimmed: boolean;
+  /** Not ticked for plotting: shown faint. */
+  off: boolean;
   showPhoto: boolean;
   colour: string;
   widthMm: number | null;
 }) {
   const drawn = itemDrawnPaths(item).paths; // the item's lines plus any hatch fill
   const d = useMemo(() => drawn.map((p) => pathData(p.points)).join(""), [drawn]);
-  const lineClass = `pp-item-lines${widthMm !== null ? " pp-item-lines--true" : ""}${dimmed ? " pp-item-lines--dim" : ""}`;
+  const lineClass = `pp-item-lines${widthMm !== null ? " pp-item-lines--true" : ""}${dimmed ? " pp-item-lines--dim" : ""}${off ? " pp-item-lines--off" : ""}`;
   return (
     <g transform={itemSvgTransform(item)}>
       {item.photo && showPhoto && (
@@ -306,6 +309,7 @@ export function PageCanvas({
               key={it.id}
               item={it}
               dimmed={plotting}
+              off={!!it.skip}
               showPhoto={!plotting && (it.id === page.selectedId || it.paths.length === 0)}
               colour={pen.colour}
               widthMm={trueWidth ? pen.widthMm : null}
@@ -492,9 +496,18 @@ export function DrawingsPanel({
         >
           {page.items.map((it) => (
             <li key={it.id}>
+              <input
+                type="checkbox"
+                className="pp-item-plot"
+                checked={!it.skip}
+                disabled={locked}
+                title={it.skip ? "Not plotted. Tick to plot it." : "Plotted. Untick to leave it out of Plot and Frame."}
+                aria-label={`Plot ${it.name}`}
+                onChange={(e) => pageDispatch({ type: "plot", id: it.id, on: e.target.checked })}
+              />
               <button
                 type="button"
-                className={`button-link pp-item-name${it.id === page.selectedId ? " pp-item-name--selected" : ""}`}
+                className={`button-link pp-item-name${it.id === page.selectedId ? " pp-item-name--selected" : ""}${it.skip ? " pp-item-name--off" : ""}`}
                 onClick={() => pageDispatch({ type: "select", id: it.id })}
                 title={it.name}
               >
@@ -505,6 +518,9 @@ export function DrawingsPanel({
             </li>
           ))}
         </ul>
+      )}
+      {page.items.length > 0 && page.items.every((it) => it.skip) && (
+        <div className="pp-note">Nothing is ticked, so there's nothing to plot. Tick the drawings to plot.</div>
       )}
       {overflowing.length > 0 && (
         <div className="pp-warning">
