@@ -16,9 +16,12 @@ files:
   # The UI is fully bundled by esbuild; saxi's server-side packages
   # (express, serialport, ...) are not used by the desktop app.
   - "!node_modules{,/**/*}"
-# English-only Chromium language packs (the UI is English).
+# English-only Chromium language packs (the UI is English). Mac names them
+# en.lproj, Windows en-US.pak / en-GB.pak; Windows won't start without en-US.
 electronLanguages:
   - en
+  - en-US
+  - en-GB
 asar: true
 # The app has no native modules (it talks to the plotter over Web Serial).
 npmRebuild: false

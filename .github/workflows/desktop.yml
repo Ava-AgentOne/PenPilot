@@ -32,6 +32,33 @@ jobs:
       - run: npm run dist:win
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      - name: Check the package has what PenPilot needs
+        shell: pwsh
+        run: |
+          $r = "release/win-unpacked"
+          $need = "PenPilot.exe", "locales/en-US.pak", "resources/app.asar",
+                  "resources/windows-extras/driver/mchpcdc.inf",
+                  "resources/windows-extras/driver/mchpcdc.cat",
+                  "resources/windows-extras/firmware-updater/EBBUpgraderGUI_v317.exe"
+          foreach ($f in $need) {
+            if (-not (Test-Path "$r/$f")) { Write-Error "Missing from the Windows build: $f"; exit 1 }
+          }
+          Write-Host "All required files present."
+      - name: Start PenPilot and check its window loads
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath "release/win-unpacked/PenPilot.exe" -ArgumentList "--remote-debugging-port=9333" -PassThru
+          $ok = $false
+          for ($i = 0; $i -lt 60 -and -not $ok; $i++) {
+            Start-Sleep -Seconds 1
+            try {
+              $pages = Invoke-RestMethod -Uri "http://127.0.0.1:9333/json" -TimeoutSec 2
+              $ok = [bool]($pages | Where-Object { $_.url -like "app://penpilot/*" -and $_.title -eq "PenPilot" })
+            } catch {}
+          }
+          Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+          if (-not $ok) { Write-Error "PenPilot did not open its window within 60 s"; exit 1 }
+          Write-Host "PenPilot started and loaded its window."
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: PenPilot-windows
