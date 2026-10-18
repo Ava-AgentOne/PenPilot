@@ -18,7 +18,7 @@ choose **Replace**).
    handwriting: no hollow letters. The list has four groups:
    - **Handwriting & script, single stroke:** e.g. **EMS Casual Hand**, **EMS Neato**,
      **EMS Pepita** (everyday handwriting), **EMS Society**, **EMS Invite** (elegant script).
-   - **Arabic, traced:** **Aref Ruqaa** (Ruqʿah handwriting), Alkalami, Noto Naskh, Amiri and others.
+   - **Arabic, traced:** **Alkalami** (handwritten), Noto Naskh, Amiri, Lateef, Reem Kufi, Tajawal.
      Type in Arabic; joining, right-to-left order and dots are handled for you.
    - **More handwriting, traced:** Caveat, Dancing Script, Kalam and others.
    - **Print & display, single stroke:** Readability, Hershey Sans/Serif/Gothic and more.

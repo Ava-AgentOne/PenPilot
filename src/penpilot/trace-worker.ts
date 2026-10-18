@@ -13,7 +13,8 @@
 
 import ImageTracer from "imagetracerjs";
 import TraceSkeleton from "skeleton-tracing-js";
-import { joinEnds, length, type Pt, simplify, smooth, toPathData } from "./trace-geometry.js";
+import { cutOut, dropSpecks, joinEnds, type Pt, simplify, smooth, toPathData } from "./trace-geometry.js";
+import { thickParts } from "./trace-raster.js";
 
 const controls = [
   { label: "Threshold", value: 128, min: 1, max: 254 },
@@ -25,6 +26,10 @@ const controls = [
   // Small round blobs up to this size (px) become pen dots instead of being
   // thinned away -- e.g. Arabic letter dots, or dots in a drawing. 0 = off.
   { label: "Dots", value: 0, min: 0, max: 60 },
+  // Parts much thicker than the normal stroke (solid letter heads, filled
+  // areas) drawn as a loop just inside them instead of a stub. Off by default:
+  // on line art with brush-like strokes it doubles the thicker stretches.
+  { label: "Loops for thick parts", type: "checkbox", checked: false },
 ];
 
 // Worker scope: postMessage takes just the message.
@@ -39,15 +44,26 @@ self.onmessage = (e: MessageEvent) => {
     post(["msg", "Tracing…"]);
     const dark = binarise(image, Number(config.Threshold), Boolean(config.Inverted), Number(config.Blur));
     const dots = config.Mode === "outline" ? [] : takeDots(dark, image.width, image.height, Number(config.Dots ?? 0));
-    const lines =
-      config.Mode === "outline"
-        ? traceOutlines(dark, image.width, image.height)
-        : traceCentreLines(dark, image.width, image.height);
-    const cleaned = lines
-      .filter((l) => length(l) >= Number(config["Remove specks"]))
-      .map((l) => smooth(simplify(l, Number(config.Simplify)), Number(config.Smoothing)))
+    const w = image.width;
+    const h = image.height;
+    let lines: Pt[][];
+    let loops: Pt[][] = [];
+    if (config.Mode === "outline") {
+      lines = traceOutlines(dark, w, h);
+    } else {
+      const thick = config["Loops for thick parts"] === true ? thickParts(dark, w, h) : null;
+      lines = traceCentreLines(dark, w, h);
+      if (thick && thick.loops.length) {
+        loops = thick.loops;
+        // Centre lines through a thick part are replaced by its loop.
+        lines = lines.flatMap((l) => cutOut(l, (x, y) => thick.area[Math.round(y) * w + Math.round(x)] === 1));
+      }
+    }
+    const tidy = (l: Pt[]) => smooth(simplify(l, Number(config.Simplify)), Number(config.Smoothing));
+    const cleaned = dropSpecks(joinEnds(lines, 2), Number(config["Remove specks"]))
+      .map(tidy)
       .filter((l) => l.length > 1);
-    post(["svg-path", toPathData(cleaned.concat(dots))]);
+    post(["svg-path", toPathData(cleaned.concat(loops.map(tidy), dots))]);
     post(["msg", "Done"]);
   } catch (err) {
     // Surfaces as the worker's error event (shown in the photo panel).

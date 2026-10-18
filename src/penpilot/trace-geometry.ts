@@ -94,3 +94,37 @@ export function toPathData(lines: Pt[][]): string {
   }
   return d;
 }
+
+/** Split a line wherever it passes through `inside`, keeping the parts outside. */
+export function cutOut(l: Pt[], inside: (x: number, y: number) => boolean): Pt[][] {
+  const out: Pt[][] = [];
+  let cur: Pt[] = [];
+  for (const p of l) {
+    if (inside(p[0], p[1])) {
+      if (cur.length > 1) out.push(cur);
+      cur = [];
+    } else cur.push(p);
+  }
+  if (cur.length > 1) out.push(cur);
+  return out;
+}
+
+/**
+ * Remove specks and stray hairs, but never a short piece that links two parts
+ * of a letter: a line shorter than `min` is dropped only if one or both of its
+ * ends touch nothing else (within `tol` px).
+ */
+export function dropSpecks(lines: Pt[][], min: number, tol = 2.5): Pt[][] {
+  if (min <= 0) return lines;
+  const ends = lines.map((l) => [l[0], l[l.length - 1]] as const);
+  const touches = (p: Pt, self: number) =>
+    lines.some((l, j) => {
+      if (j === self) return false;
+      for (const q of l) if (Math.abs(q[0] - p[0]) <= tol && Math.abs(q[1] - p[1]) <= tol) return true;
+      return false;
+    });
+  return lines.filter((l, i) => {
+    if (length(l) >= min) return true;
+    return touches(ends[i][0], i) && touches(ends[i][1], i);
+  });
+}

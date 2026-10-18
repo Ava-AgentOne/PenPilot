@@ -8,7 +8,6 @@
  * Apache 2.0), so this works offline. They only download into memory when used.
  */
 
-import "@fontsource/aref-ruqaa/400.css";
 import "@fontsource/alkalami/400.css";
 import "@fontsource/amiri/400.css";
 import "@fontsource/noto-naskh-arabic/400.css";
@@ -24,7 +23,6 @@ import "@fontsource/indie-flower/400.css";
 export const TRACED_PREFIX = "traced:";
 
 export const TRACED_FONTS: { id: string; family: string; name: string; arabic: boolean }[] = [
-  { id: "traced:aref-ruqaa", family: "Aref Ruqaa", name: "Aref Ruqaa: Ruqʿah handwriting", arabic: true },
   { id: "traced:alkalami", family: "Alkalami", name: "Alkalami: handwritten", arabic: true },
   { id: "traced:noto-naskh", family: "Noto Naskh Arabic", name: "Noto Naskh: clear Naskh", arabic: true },
   { id: "traced:amiri", family: "Amiri", name: "Amiri: classic Naskh", arabic: true },
