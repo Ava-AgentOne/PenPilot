@@ -31,8 +31,11 @@
     "prepare": "node -e \"require('fs').rmSync('./dist', { recursive: true, force: true, maxRetries: process.platform === 'win32' ? 10 : 0 })\" && npm run build",
     "start": "npm run build && node cli.mjs",
     "start-webserial": "cross-env IS_WEB=1 SAXI_HOT_RELOAD=1 npm run build:ui",
-    "deploy": "node -e \"require('fs').rmSync('./dist/ui', { recursive: true, force: true, maxRetries: process.platform === 'win32' ? 10 : 0 })\" && cross-env IS_WEB=1 npm run build:ui && gh-pages --dist dist/ui",
-    "test": "vitest run"
+    "test": "vitest run",
+    "desktop:ui": "cross-env PENPILOT_DESKTOP=1 node build.mjs",
+    "desktop": "npm run desktop:ui && electron desktop/app",
+    "dist:mac": "npm run lint && npm run desktop:ui && electron-builder --mac dmg --arm64 --publish never",
+    "dist:win": "npm run lint && npm run desktop:ui && electron-builder --win nsis portable --x64 --publish never"
   },
   "author": "Jeremy Rose <nornagon@nornagon.net>",
   "license": "AGPL-3.0-only",
@@ -50,6 +53,8 @@
     "@types/ws": "8.18",
     "@types/yargs": "^17.0.0",
     "cross-env": "^10.0.0",
+    "electron": "44.9.0",
+    "electron-builder": "26.15.3",
     "esbuild": "^0.28.0",
     "esbuild-plugin-inline-worker": "^0.1.1",
     "gh-pages": "^6.0.0",
@@ -59,6 +64,7 @@
     "vitest": "^5.0.0"
   },
   "dependencies": {
+    "@fontsource/work-sans": "5.3.0",
     "color-interpolate": "^2.0.0",
     "colormap": "^2.3.2",
     "cors": "^2.8.5",

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- PenPilot first plot test: a 90 x 60 mm frame with a circle, a star and a
+     zig-zag. Small and quick (about a minute) so pen height and paper position
+     can be checked without wasting ink. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="90mm" height="60mm" viewBox="0 0 90 60">
+  <g fill="none" stroke="black" stroke-width="0.4" stroke-linejoin="round" stroke-linecap="round">
+    <rect x="2" y="2" width="86" height="56" rx="3"/>
+    <circle cx="22" cy="30" r="14"/>
+    <circle cx="22" cy="30" r="2"/>
+    <polygon points="57,12 61.1,24.4 74.1,24.4 63.5,32.1 67.6,44.6 57,36.9 46.4,44.6 50.5,32.1 39.9,24.4 52.9,24.4"/>
+    <polyline points="40,52 46,47 52,52 58,47 64,52 70,47 76,52 82,47"/>
+  </g>
+</svg>

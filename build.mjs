@@ -4,20 +4,24 @@ import { htmlPlugin as html } from "@craftamap/esbuild-plugin-html";
 import { build, context } from "esbuild";
 import inlineWorker from "esbuild-plugin-inline-worker";
 
+// PenPilot desktop build: browser (Web Serial) UI, written straight into the
+// Electron app folder, without source maps.
+const isDesktop = process.env.PENPILOT_DESKTOP === "1";
+
 const buildOptions = {
   entryPoints: ["src/ui.tsx", "src/background-planner.ts"],
   bundle: true,
   platform: "browser",
   target: "es2022",
   minify: true,
-  sourcemap: true,
+  sourcemap: !isDesktop,
   metafile: true,
   logLevel: "debug",
-  outdir: "dist/ui",
+  outdir: isDesktop ? "desktop/app/ui" : "dist/ui",
   tsconfig: "tsconfig.ui.json",
-  loader: { ".svg": "file" },
+  loader: { ".svg": "file", ".woff": "file", ".woff2": "file" },
   define: {
-    IS_WEB: (process.env.IS_WEB === "1").toString(),
+    IS_WEB: (process.env.IS_WEB === "1" || isDesktop).toString(),
     "process.env.DEBUG_SAXI_COMMANDS": JSON.stringify(process.env.DEBUG_SAXI_COMMANDS ?? ""),
     "process.env.SAXI_FIFO_DEPTH": JSON.stringify(process.env.SAXI_FIFO_DEPTH ?? ""),
   },

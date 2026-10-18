@@ -1,0 +1,110 @@
+/* PenPilot additions on top of saxi's style.css (same colour variables). */
+
+.pp-subtitle {
+  margin-top: -0.25rem;
+  font-size: 11px;
+  text-align: center;
+  color: var(--purple-light);
+  user-select: none;
+}
+
+.pp-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  margin: 0.5rem 0;
+  font-weight: 700;
+}
+.pp-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.pp-status--ok { color: var(--teal-dark); }
+.pp-status--warn { color: #c08a2b; }
+.pp-status--off { color: var(--red); }
+
+.pp-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(96, 73, 135, 0.35);
+}
+.pp-card {
+  width: min(520px, 100%);
+  max-height: 100%;
+  overflow: auto;
+  padding: 1.25rem 1.5rem;
+  background: white;
+  border-radius: 10px;
+  box-shadow: 3px 3px 25px rgba(0, 0, 0, 0.25);
+}
+.pp-card-title {
+  margin-bottom: 0.75rem;
+  font-size: 22px;
+  font-weight: 900;
+  text-align: center;
+}
+
+.pp-checks {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+}
+.pp-check {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--purple-light);
+}
+.pp-icon {
+  flex: 0 0 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  color: white;
+  background: var(--purple-light);
+}
+.pp-check--ok .pp-icon { background: var(--teal-dark); }
+.pp-check--warn .pp-icon { background: #c08a2b; }
+.pp-check--fail .pp-icon { background: var(--red); }
+.pp-check--checking .pp-icon { background: var(--purple); }
+.pp-check--skipped { opacity: 0.45; }
+
+.pp-check-body { flex: 1; min-width: 0; }
+.pp-check-label { font-weight: 700; line-height: 26px; }
+.pp-check-detail { margin-top: 0.15rem; line-height: 1.4; color: var(--purple-dark); }
+.pp-action { margin-top: 0.5rem; }
+
+.pp-message {
+  margin-bottom: 1rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 6px;
+  line-height: 1.4;
+  background: var(--purple-light);
+  color: var(--purple-dark);
+}
+.pp-message--ok {
+  background: var(--teal-light);
+  color: var(--teal-dark);
+  font-weight: 700;
+  text-align: center;
+}
+
+/* saxi's fixed "plot" block at the bottom of the panel is ~270px tall; the
+   scroll spacer must be at least that, or the last settings hide behind it. */
+.spacer {
+  height: 290px;
+}
+.pp-status + button {
+  width: 100%;
+}

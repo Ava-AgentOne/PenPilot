@@ -1,256 +1,75 @@
-# saxi
-##### make plot good
+# PenPilot
 
-saxi is a tool for interacting with the [AxiDraw
-drawing machine](https://axidraw.com/) by Evil Mad Scientist. It comes with an
-easy-to-use interface, and is exactingly precise.
+A standalone desktop app for the **AxiDraw V3** pen plotter on **Mac and Windows**.
+You install one thing and it works: no Inkscape, Node.js, Python or drivers to set up.
 
-- automatically scales & centers your drawing to fit on the paper
-- minimizes pen-up travel time by reordering & reversing paths
-- uses a custom motion planning algorithm (inspired by [axi](https://github.com/fogleman/axi)) that's smooth & fast
-- automatically splits apart layers based on SVG stroke colors or group IDs
-- has a web-based UI, so there's no need to muck around with installing X11 and Inkscape
-- can run on a Raspberry Pi or similar, so you don't need to be tethered to your plotter while it plots
+PenPilot is built on [saxi](https://github.com/alexrudd2/saxi) (AGPL-3.0), which
+handles the plotter, motion planning, preview and plotting. Saxi's own README is
+kept in [`docs/saxi-README.md`](docs/saxi-README.md). The full plan for PenPilot
+is in [`PLAN.md`](PLAN.md).
 
-![a screenshot of the saxi user interface](docs/saxi.png)
 
-### Installation
 
-#### For Raspberry Pi 2 / 3 / 4 / 5
+## What works now (build step 1)
 
-1. **Install Node.js (if not already installed):**
+- **One install** on Mac (`.dmg`) or Windows (installer, or a portable `.exe` that runs without installing).
+- **Plotter check** when the app opens, and again whenever the plotter is plugged in or unplugged. In plain words it tells you if:
+  - the plotter isn't found (cable, port, a charge-only cable);
+  - Windows sees the plotter but has no driver (Windows 8 and older). An **Install driver** button fixes this;
+  - the plotter doesn't answer (another program has it open);
+  - the firmware is older than 2.5.3. On Windows, **Update firmware** opens the official updater (firmware 3.1.7);
+  - the motor power adapter isn't plugged in.
+- Everything saxi already does: drop in an SVG, choose paper (A4 landscape by default) and margins, preview with time estimate, pen up/down heights, plot, pause, resume and cancel.
 
-```bash
-$ curl -sL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-$ sudo apt-get install -y nodejs
-```
+## Installing
 
-2. **Install `saxi` globally:**
+### Mac (Apple Silicon)
 
-```bash
-$ sudo npm install -g saxi
-```
+1. Open `PenPilot-<version>-mac-arm64.dmg` and drag **PenPilot** into **Applications**.
+2. **First open only:** PenPilot isn't signed with a paid Apple certificate, so macOS blocks it the first time it comes from a download or another computer:
+   - Double-click PenPilot. When macOS says it can't check it, press **Done**.
+   - Open **System Settings → Privacy & Security**, scroll down, and press **Open Anyway** next to "PenPilot was blocked". Enter your password.
+   - After that it opens normally. If you built it on this Mac yourself, you won't see the warning at all.
 
-If you encounter an `EACCES` error when installing the package globally, see [Resolving EACCES permissions errors when installing packages globally](https://docs.npmjs.com/resolving-eacces-permissions-errors-when-installing-packages-globally).
+### Windows 10 / 11
 
----
+1. Run `PenPilot-Setup-<version>.exe`, or use `PenPilot-Portable-<version>.exe` from anywhere without installing.
+2. **First run only:** Windows SmartScreen may say "Windows protected your PC". Press **More info → Run anyway**. This appears because the app isn't signed with a paid certificate.
+3. No driver is needed on Windows 10/11. On Windows 8 or older, PenPilot offers **Install driver** on the Plotter check screen. Windows asks for permission once.
 
-#### For Raspberry Pi Zero / 1 (armv6l)
-
-The official Node.js builds don’t support armv6l. Use an unofficial build:
-
-1. **Download and extract Node.js v20 for armv6l:**
+## Building
 
 ```bash
-$ wget https://unofficial-builds.nodejs.org/download/release/v20.5.1/node-v20.5.1-linux-armv6l.tar.xz
-$ tar xf node-v*-armv6l.tar.xz
-$ export PATH=$PATH:$PWD/node-v*-linux-armv6l/
+npm ci
+npm run desktop     # run the app from source
+npm run dist:mac    # Mac installer → release/PenPilot-<version>-mac-arm64.dmg
 ```
 
-2. **Install `saxi`:**
+The **Windows** installer and portable `.exe` are built on GitHub's Windows machines:
 
 ```bash
-$ npm install -g saxi
+gh workflow run desktop.yml
+gh run download --name PenPilot-windows --dir release/windows
 ```
 
-If you encounter an `EACCES` error when installing the package globally, see [Resolving EACCES permissions errors when installing packages globally](https://docs.npmjs.com/resolving-eacces-permissions-errors-when-installing-packages-globally).
+Pushing a tag like `v0.1.0` builds them too.
 
----
+### How it fits together
 
-### Usage
+| Folder | What's in it |
+|---|---|
+| `src/` | saxi's UI, plotter driver and motion planner. PenPilot additions are in `src/penpilot/`. |
+| `desktop/app/` | The desktop shell (Electron): window, private `app://` page loader, automatic plotter selection, Windows helpers. `desktop/app/ui/` is generated by `npm run desktop:ui`. |
+| `desktop/windows-extras/` | Official EiBotBoard USB driver and firmware updater (Windows build only). See its `SOURCE.md`. |
+| `electron-builder.yml` | Installer settings for both systems. |
+| `samples/penpilot-test.svg` | A small test drawing (about 45 seconds). |
 
-Start the `saxi` server from the terminal:
+The app talks to the plotter over **Web Serial** inside Electron, so it has no native
+code to rebuild. The desktop shell grants access only to the AxiDraw's board
+(USB `04D8:FD92`).
 
-```bash
-$ saxi
-Server listening on http://0.0.0.0:9080
-Connecting to EBB on /dev/tty.usbmodem1461
-```
+## Licence
 
-Then open a web browser:
-
-Go to `http://localhost:9080` if you're using the same computer where saxi is running.
-
-Go to `http://<computer-ip>:9080` if you're on a different device.
-(You can find the IP address by running `hostname -I` on the computer running saxi.)
-
----
-
-### Running `saxi` over SSH
-
-If you're connecting to your Raspberry Pi via SSH, it’s a good idea to keep the `saxi` server running inside a `tmux` session so it stays active even if your SSH session disconnects.
-
-#### Install `tmux` (if not installed)
-
-```bash
-$ sudo apt-get install -y tmux
-```
-
-#### Start a `tmux` session and run `saxi`
-
-```bash
-$ tmux new -s saxi
-$ saxi
-```
-
-To detach from the session (leaving it running), press:
-
-```
-Ctrl + b, then d
-```
-
-To reattach later:
-
-```bash
-$ tmux attach -t saxi
-```
-
-To list sessions:
-
-```bash
-$ tmux ls
-```
-
-To terminate session:
-
-```bash
-$ tmux kill-session -t saxi
-```
-
----
-
-If you want `saxi` to run at boot on the Pi you can use a systemd unit file and enable the service:
-
-```bash
-sudo tee /lib/systemd/system/saxi.service <<EOF
-[Unit]
-Description=Saxi
-After=network.target
-
-[Service]
-ExecStart=saxi
-Restart=always
-User=pi
-
-[Install]
-WantedBy=multi-user.target
-EOF
-sudo systemctl enable saxi.service
-```
-
-To watch the logs while it is running, use:
-```bash
-journalctl -f -u saxi
-```
-
-#### Raspberry Pi Zero OTG
-
-![Pi Zero on an AxiDraw with a Y-shaped USB cable](docs/pi-zero.jpg)
-
-For the Pi Zero you can make a USB "OTG" cable out of two Micro-B cables and two 0.1" headers
-to tap into the AxiDraw's 5V servo supply to power the Pi.  This makes for a more compact
-installation without the need for an additional wall-wart.
-
-
-```
-           +------ Center pin on servo rail
-           | +---- Ground pin on servo rail
-           | |
-           | |
-Red   -----+-|---- Red
-Black -------+---- Black
-White ------------ White
-Green ------------ Green (sometimes Blue)
-```
-
-The Pi will also need to have the `dr_mode=host` parameter set in
-`config.txt` to force host mode, since normal USB Micro cables do not
-include the `ID` pin that would be used to signal that it is an OTG
-connection.
-
-```
-echo dtoverly=dwc2,dr_mode=host | sudo tee -a /boot/config.txt
-```
-
-
-#### CORS
-
-If you want to connect to saxi from a web page that isn't served by saxi
-itself, you'll need to enable
-[CORS](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS), otherwise
-GET/POST requests will be denied by the browser. CORS is disabled by default as
-a security precaution, but if you need it it's available. Just launch saxi with
-the `--enable-cors` flag.
-
-### Info
-
-saxi makes use of the low-level `LM` command introduced in EBB firmware version
-2.5.3 to carry out highly accurate constant-acceleration motion plans. If your
-AxiDraw is running an older version of the firmware, saxi will fall back to the
-less-accurate (but still pretty accurate) `XM` command.
-
-To check what version of the EBB firmware your AxiDraw is running, run `saxi --firmware-version`:
-
-```bash
-$ saxi --firmware-version
-EBBv13_and_above EB Firmware Version 2.5.3
-```
-
-To upgrade your AxiDraw's firmware, see [here](https://github.com/evil-mad/EggBot/tree/master/EBB_firmware).
-
-### Developing
-
-To work on saxi, you can clone this repo and then run `npm start`:
-
-```sh
-$ git clone https://github.com/alexrudd2/saxi
-$ cd saxi
-$ npm run start
-```
-
-This will not watch local files for changes. If you change the server code, you'll need to restart manually.
-
-### Credits
-
-saxi's motion planning algorithm is heavily inspired by Michael Fogleman's
-[axi](https://github.com/fogleman/axi) project.
-
-saxi's UI would be an ugly mess if it weren't for [@kylestetz](https://github.com/kylestetz)'s discerning eye.
-
-Thanks to [Evil Mad Scientist](http://www.evilmadscientist.com/) for designing
-and building such a lovely machine!
-
----
-
-## Made with saxi
-
-These images were plotted by folks using saxi. If you'd like to add something you've made here, [shoot me an email](mailto:nornagon@nornagon.net)!
-
-<table>
-  <tbody>
-    <tr>
-      <td width=300>
-        <a href="https://www.instagram.com/p/B9hFx9KFOwG/"><img width="272" src="https://user-images.githubusercontent.com/172800/80814353-9760ce00-8b80-11ea-8a94-64e13c33a7bc.jpg" alt="Plotted image by @targz" /></a>
-        <p>by <strong>Julien Terraz (<a href="https://www.instagram.com/targz/">@targz</a>)</strong></p>
-      </td>
-      <td width=300>
-        <a href="https://github.com/abey79/vpype-explorations"><img width="272" src="https://user-images.githubusercontent.com/172800/80814313-81530d80-8b80-11ea-963a-9ea337f2c6a2.jpg" alt="Plotted image by @abey79" /></a>
-        <p>by <strong>Antoine Beyeler (<a href="https://twitter.com/abey79">@abey79</a>)</strong></p>
-      </td>
-      <td width=300>
-        <a href="https://twitter.com/MAKIO135/status/1253334618243125256"><img width="272" src="https://user-images.githubusercontent.com/172800/80814775-4ef5e000-8b81-11ea-896c-e7522d4c38d1.jpg" alt="Plotted image by @MAKIO135" /></a>
-        <p>by <strong>Lionel Radisson (<a href="https://twitter.com/MAKIO135">@MAKIO135</a>)</strong></p>
-      </td>
-    </tr>
-    <tr>
-      <td width=300>
-        <a href="https://www.instagram.com/p/B4iixy7gDB9/"><img width="272" src="https://user-images.githubusercontent.com/172800/80815693-faebfb00-8b82-11ea-81a3-24f825b405ce.jpg" alt="Plotted image by @daniel_feles" /></a>
-        <p>by <strong>Daniel Feles (<a href="https://www.instagram.com/daniel_feles/">@daniel_feles</a>)</strong></p>
-      </td>
-      <td width=300>
-      </td>
-      <td width=300>
-      </td>
-    </tr>
-  </tbody>
-</table>
+AGPL-3.0, the same as saxi. See [`LICENSE`](LICENSE) and [`NOTICE.md`](NOTICE.md) for all the
+parts PenPilot is built from. AxiDraw is a trademark of Evil Mad Scientist Laboratories.
+PenPilot isn't made by or affiliated with them.

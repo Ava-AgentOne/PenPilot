@@ -23,12 +23,18 @@ import useComponentSize from "./useComponentSize.js";
 
 import { formatDuration } from "./util.js";
 
+import "@fontsource/work-sans/400.css";
+import "@fontsource/work-sans/700.css";
+import "@fontsource/work-sans/900.css";
 import "./style.css";
+import "./penpilot/penpilot.css";
 import { type BaseDriver, type DeviceInfo, SaxiDriver, WebSerialDriver } from "./drivers.js";
 import type { Hardware } from "./ebb.js";
 import pathJoinRadiusIcon from "./icons/path-joining radius.svg";
 import pointJoinRadiusIcon from "./icons/point-joining radius.svg";
 import rotateDrawingIcon from "./icons/rotate-drawing.svg";
+import { desktop } from "./penpilot/desktop.js";
+import { PlotterCheck } from "./penpilot/plotter-check.js";
 
 const defaultVisualizationOptions = {
   penStrokeWidth: 0.5,
@@ -1166,9 +1172,10 @@ function Root() {
       <div className={`root ${state.connected ? "connected" : "disconnected"}`}>
         <div className="control-panel">
           <div className={"saxi-title red"}>
-            <span className="red reg">s</span>
-            <span className="teal">axi</span>
+            <span className="red reg">Pen</span>
+            <span className="teal">Pilot</span>
           </div>
+          <div className="pp-subtitle">based on saxi</div>
           {!IS_WEB && (
             <div className={state.connected && state.deviceInfo?.path ? "info" : "info-disconnected"}>
               {state.connected
@@ -1178,7 +1185,17 @@ function Root() {
                 : "disconnected"}
             </div>
           )}
-          {IS_WEB && (
+          {IS_WEB && desktop && (
+            <div className="section-body">
+              <PlotterCheck
+                driver={driver}
+                setDriver={setDriver}
+                hardware={state.planOptions.hardware}
+                busy={state.progress !== null}
+              />
+            </div>
+          )}
+          {IS_WEB && !desktop && (
             <PortSelector
               driver={driver}
               setDriver={setDriver}

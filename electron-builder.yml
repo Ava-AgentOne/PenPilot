@@ -1,0 +1,67 @@
+# PenPilot installers. Mac: `npm run dist:mac` (on the Mac).
+# Windows: `npm run dist:win` (GitHub Actions, .github/workflows/desktop.yml).
+appId: com.avaagentone.penpilot
+productName: PenPilot
+copyright: "PenPilot, based on saxi by Jeremy Rose and contributors. AGPL-3.0."
+electronVersion: 44.9.0
+
+directories:
+  app: desktop/app
+  output: release
+  buildResources: desktop/build
+
+files:
+  - "**/*"
+  - "!**/*.map"
+  # The UI is fully bundled by esbuild; saxi's server-side packages
+  # (express, serialport, ...) are not used by the desktop app.
+  - "!node_modules{,/**/*}"
+# English-only Chromium language packs (the UI is English).
+electronLanguages:
+  - en
+asar: true
+# The app has no native modules (it talks to the plotter over Web Serial).
+npmRebuild: false
+
+extraResources:
+  - from: LICENSE
+    to: LICENSE-PenPilot-AGPL-3.0.txt
+  - from: NOTICE.md
+    to: NOTICE.md
+
+mac:
+  target: dmg
+  category: public.app-category.graphics-design
+  # No paid Apple certificate: skip signing here, then ad-hoc sign in afterPack
+  # (Apple Silicon refuses to run completely unsigned code).
+  identity: null
+  hardenedRuntime: false
+  artifactName: "${productName}-${version}-mac-${arch}.${ext}"
+  extendInfo:
+    # PenPilot never uses Bluetooth, but Chromium's serial code links against it;
+    # macOS requires this text to exist or it stops the app outright.
+    NSBluetoothAlwaysUsageDescription: "PenPilot only talks to your AxiDraw over USB. It does not use Bluetooth."
+afterPack: desktop/scripts/after-pack.cjs
+
+dmg:
+  title: "${productName} ${version}"
+
+win:
+  target:
+    - nsis
+    - portable
+  extraResources:
+    - from: desktop/windows-extras
+      to: windows-extras
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: PenPilot
+  artifactName: "${productName}-Setup-${version}.${ext}"
+
+portable:
+  artifactName: "${productName}-Portable-${version}.${ext}"

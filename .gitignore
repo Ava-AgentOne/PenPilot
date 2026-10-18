@@ -13,3 +13,6 @@ dist/
 
 # Electron build output
 /release/
+
+# PenPilot desktop build output
+/desktop/app/ui/

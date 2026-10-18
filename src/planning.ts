@@ -42,7 +42,7 @@ export const defaultPlanOptions: PlanOptions = {
   penDownHeight: 60,
   pointJoinRadius: 0,
   pathJoinRadius: 0.5,
-  paperSize: PaperSize.standard.ArchA.landscape,
+  paperSize: PaperSize.standard.A4.landscape, // PenPilot: A4 fits the AxiDraw V3 (300 x 218 mm reach)
   marginMm: 20,
   selectedGroupLayers: new Set(),
   selectedStrokeLayers: new Set(),
