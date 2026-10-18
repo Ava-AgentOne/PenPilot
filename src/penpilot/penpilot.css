@@ -376,3 +376,132 @@ button.button-link.pp-forget-size { margin: -0.25rem 0 0.5rem; }
 .pp-text-panel .pp-segmented { margin-bottom: 0.4rem; }
 
 .pp-fill-panel { margin-top: 0.25rem; }
+
+/* ---- Pens (step 6) ------------------------------------------------------------ */
+
+.pp-swatch {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 11px;
+  height: 11px;
+  margin-right: 0.3rem;
+  vertical-align: -1px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.25);
+}
+.pp-pen-pick {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.4rem;
+}
+.pp-pen-pick select { flex: 1; min-width: 0; margin-bottom: 0; }
+.pp-pen-pick .pp-swatch { width: 14px; height: 14px; margin-right: 0; }
+button.pp-small-button {
+  flex: 0 0 auto;
+  width: auto;
+  padding: 0.25rem 0.5rem;
+  font-size: 12px;
+}
+.pp-pen-card {
+  margin: 0 0 0.5rem;
+  padding: 0.5rem 0.6rem 0.25rem;
+  border: 1px solid var(--purple-light);
+  border-left-width: 5px;
+  border-radius: 6px;
+}
+.pp-pen-name {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  column-gap: 10px;
+}
+.pp-pen-name input[type=text] { margin-bottom: 0.3rem; font-size: 12px; }
+.pp-colour input[type=color] {
+  display: block;
+  width: 44px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--purple-light);
+  border-radius: 4px;
+  background: white;
+  cursor: pointer;
+}
+.pp-pens { margin-bottom: 0.25rem; }
+.pp-pen-buttons { margin-top: 0.15rem; }
+.pp-pen-card .pp-pen-buttons button { margin-bottom: 0.3rem; }
+.pp-pen-card button.pp-test-button { margin-bottom: 0.3rem; padding: 0.3rem; font-size: 12px; }
+.pp-item-pen { margin-top: 0.25rem; }
+.pp-item-pen .pp-pen-pick { margin-top: 0.15rem; }
+.pp-pen-change-title .pp-swatch { width: 18px; height: 18px; margin: 0 0.4rem; }
+.pp-item-list button.pp-item-name .pp-swatch { width: 9px; height: 9px; }
+
+/* Real line width: the stroke is in mm, set inline, so it scales with the page. */
+.pp-page path.pp-item-lines.pp-item-lines--true {
+  vector-effect: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.pp-plot-pens {
+  margin: 0 0 0.4rem;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--purple-dark);
+}
+.pp-plot-pens ol { margin: 0.15rem 0 0; padding-left: 1.2rem; }
+.pp-plot-pens li { display: flex; align-items: center; }
+.pp-plot-pen-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.section-body__plot button.pp-earlier {
+  width: auto;
+  padding: 0 0.35rem;
+  font-size: 10px;
+  line-height: 1.5;
+}
+.pp-paused { margin: 0 0 0.4rem; }
+
+.pp-continue {
+  margin: 0 0 0.5rem;
+  padding: 0.5rem 0.6rem 0.25rem;
+  border: 1px solid var(--teal);
+  border-radius: 6px;
+  background: #f4fbfa;
+  font-size: 12px;
+}
+.pp-continue-title { margin-bottom: 0.35rem; font-weight: 700; color: var(--teal-dark); }
+.pp-continue-steps {
+  display: grid;
+  grid-template-columns: auto auto auto 1fr;
+  gap: 4px;
+  margin-bottom: 0.25rem;
+}
+.section-body__plot .pp-continue-steps button { padding: 0.15rem 0.3rem; font-size: 11px; }
+.section-body__plot button.pp-continue-button { font-size: 14px; margin-bottom: 0.15rem; }
+.pp-continue .pp-hint { margin: 0.2rem 0 0.4rem; }
+.pp-continue button.button-link.pp-forget-size { margin: 0 0 0.25rem; font-size: 11px; }
+
+.pp-pen-change {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 20;
+  width: min(420px, calc(100% - 2rem));
+  padding: 1rem 1.25rem;
+  background: white;
+  border: 2px solid var(--teal);
+  border-radius: 10px;
+  box-shadow: 3px 3px 25px rgba(0, 0, 0, 0.25);
+  color: var(--purple-dark);
+  line-height: 1.4;
+}
+.pp-pen-change-step { font-size: 12px; color: var(--purple); }
+.pp-pen-change-title {
+  display: flex;
+  align-items: center;
+  margin: 0.15rem 0 0.5rem;
+  font-size: 20px;
+  font-weight: 900;
+}
+.pp-pen-change p { margin: 0 0 0.75rem; font-size: 13px; }
+.pp-pen-change .pp-buttons button { margin-bottom: 0.4rem; }
+.pp-pen-change .pp-pen-change-go button { padding: 0.45rem; font-size: 15px; }

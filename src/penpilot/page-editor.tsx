@@ -26,7 +26,12 @@ import {
   rotateItem,
   type Size,
   setPhotoDetail,
+  splitByColour,
+  strokeColours,
 } from "./page.js";
+import { type Pen, penName } from "./pens.js";
+import { PenSwatch } from "./pens-panel.js";
+import { drawnLines } from "./plot-job.js";
 import type { FillInfo, FillKind } from "./hatch.js";
 import { MAX_DETAIL, MIN_DETAIL, PHOTO_STYLES, type PhotoConfig, TRACE_STYLES } from "./photo.js";
 import { type Align, SINGLE_LINE_FONTS, type TextInfo } from "./text.js";
@@ -48,26 +53,27 @@ function pathData(points: Vec2[]): string {
   return d;
 }
 
-/** One drawing's lines; memoised so moving another drawing doesn't redraw it. */
+/**
+ * One drawing's lines, in its pen's colour -- at the pen's real line width
+ * (`widthMm`), or as hairlines. Memoised so moving another drawing doesn't
+ * redraw it.
+ */
 const ItemLines = React.memo(function ItemLines({
   item,
   dimmed,
   showPhoto,
+  colour,
+  widthMm,
 }: {
   item: PageItem;
   dimmed: boolean;
   showPhoto: boolean;
+  colour: string;
+  widthMm: number | null;
 }) {
-  // One <path> per stroke colour, so each drawing shows in its own pen colours.
   const drawn = itemDrawnPaths(item).paths; // the item's lines plus any hatch fill
-  const byColour = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const p of drawn) {
-      const colour = p.stroke && p.stroke !== "none" ? p.stroke : "#222";
-      m.set(colour, (m.get(colour) ?? "") + pathData(p.points));
-    }
-    return [...m.entries()];
-  }, [drawn]);
+  const d = useMemo(() => drawn.map((p) => pathData(p.points)).join(""), [drawn]);
+  const lineClass = `pp-item-lines${widthMm !== null ? " pp-item-lines--true" : ""}${dimmed ? " pp-item-lines--dim" : ""}`;
   return (
     <g transform={itemSvgTransform(item)}>
       {item.photo && showPhoto && (
@@ -81,14 +87,15 @@ const ItemLines = React.memo(function ItemLines({
           preserveAspectRatio="none"
         />
       )}
-      {byColour.map(([colour, d]) => (
-        <path
-          key={colour}
-          className={dimmed ? "pp-item-lines pp-item-lines--dim" : "pp-item-lines"}
-          style={dimmed ? undefined : { stroke: colour }}
-          d={d}
-        />
-      ))}
+      <path
+        className={lineClass}
+        style={{
+          stroke: dimmed ? undefined : colour,
+          // In the item's own units: it's drawn inside the item's scale().
+          strokeWidth: widthMm !== null ? widthMm / item.scale : undefined,
+        }}
+        d={d}
+      />
     </g>
   );
 });
@@ -105,6 +112,10 @@ type CanvasProps = {
   progress: number | null;
   /** Editing is locked while the plotter is busy. */
   locked: boolean;
+  /** The pen that draws each drawing (its colour and line width). */
+  penOf: (item: PageItem) => Pen;
+  /** Draw lines at the pen's real width instead of as hairlines. */
+  trueWidth: boolean;
   previewSize: { width: number; height: number };
 };
 
@@ -119,6 +130,8 @@ export function PageCanvas({
   stepsPerMm,
   progress,
   locked,
+  penOf,
+  trueWidth,
   previewSize,
 }: CanvasProps) {
   const svgRef = useRef<SVGSVGElement>(null);
@@ -147,13 +160,12 @@ export function PageCanvas({
     if (!plan) return null;
     let travel = "";
     const draws: { index: number; d: string }[] = [];
-    let isTravel = true; // plans alternate: travel, pen down, draw, pen up, ...
+    const drawing = new Set(drawnLines(plan)); // the pen-down moves; the rest is travel
     plan.motions.forEach((m, index) => {
       if (!(m instanceof XYMotion)) return;
       const d = pathData(m.points().map((p) => stepsToPage(p, stepsPerMm, placement, pageSize)));
-      if (isTravel) travel += d;
-      else draws.push({ index, d });
-      isTravel = !isTravel;
+      if (drawing.has(index)) draws.push({ index, d });
+      else travel += d;
     });
     return { travel, draws };
   }, [plan, placement, pageSize, stepsPerMm]);
@@ -281,14 +293,19 @@ export function PageCanvas({
           width={Math.max(0, pageSize.x - 2 * marginMm)}
           height={Math.max(0, pageSize.y - 2 * marginMm)}
         />
-        {items.map((it) => (
-          <ItemLines
-            key={it.id}
-            item={it}
-            dimmed={plotting}
-            showPhoto={!plotting && (it.id === page.selectedId || it.paths.length === 0)}
-          />
-        ))}
+        {items.map((it) => {
+          const pen = penOf(it);
+          return (
+            <ItemLines
+              key={it.id}
+              item={it}
+              dimmed={plotting}
+              showPhoto={!plotting && (it.id === page.selectedId || it.paths.length === 0)}
+              colour={pen.colour}
+              widthMm={trueWidth ? pen.widthMm : null}
+            />
+          );
+        })}
         {planLines && !draft && <path className="pp-travel" d={planLines.travel} />}
         {plotting && <path className="pp-done" d={done} />}
         {penAt && (
@@ -336,6 +353,8 @@ export function PageCanvas({
 // ---- Side panel -------------------------------------------------------------------
 
 type PanelProps = {
+  pens: Pen[];
+  penOf: (item: PageItem) => Pen;
   onAddText: () => void;
   /** Replace an SVG made of filled shapes by its centre-line trace. */
   onTraceSvg: (item: PageItem) => void;
@@ -385,6 +404,20 @@ function NumberField({
   );
 }
 
+/** Whether two CSS colours ("red", "#f00", "#ff0000") are the same. */
+function sameColour(a: string, b: string): boolean {
+  const ctx = document.createElement("canvas").getContext("2d");
+  if (!ctx || !a || !b) return false;
+  // An invalid colour (e.g. "none") leaves fillStyle unchanged.
+  const norm = (c: string) => {
+    ctx.fillStyle = "#010203";
+    ctx.fillStyle = c;
+    return ctx.fillStyle === "#010203" ? null : ctx.fillStyle;
+  };
+  const na = norm(a);
+  return na !== null && na === norm(b);
+}
+
 export function DrawingsPanel({
   page,
   pageDispatch,
@@ -395,6 +428,8 @@ export function DrawingsPanel({
   onAddFiles,
   onTraceSvg,
   onAddText,
+  pens,
+  penOf,
 }: PanelProps) {
   const fileInput = useRef<HTMLInputElement>(null);
   const selected = page.items.find((it) => it.id === page.selectedId) ?? null;
@@ -436,6 +471,7 @@ export function DrawingsPanel({
                 onClick={() => pageDispatch({ type: "select", id: it.id })}
                 title={it.name}
               >
+                <PenSwatch pen={penOf(it)} />
                 {itemOverflows(it, drawable) ? "⚠ " : ""}
                 {it.name}
               </button>
@@ -460,6 +496,45 @@ export function DrawingsPanel({
               Fill them with hatching
             </button>
           )}
+        </div>
+      )}
+      {selected && (
+        <label className="pp-field pp-item-pen">
+          drawn with
+          <span className="pp-pen-pick">
+            <PenSwatch pen={penOf(selected)} />
+            <select
+              value={penOf(selected).id}
+              disabled={locked}
+              onChange={(e) => pageDispatch({ type: "pen", id: selected.id, penId: e.target.value })}
+            >
+              {pens.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {penName(p)}
+                </option>
+              ))}
+            </select>
+          </span>
+        </label>
+      )}
+      {selected && !selected.photo && !selected.text && strokeColours(selected).length > 1 && (
+        <div className="pp-note">
+          This drawing has {strokeColours(selected).length} line colours. Split it to draw each colour with its own pen.
+          <button
+            type="button"
+            className="pp-fill-only-button"
+            disabled={locked}
+            onClick={() => {
+              const parts = splitByColour(selected).map((part) => {
+                // A pen of the same colour, if there is one.
+                const match = pens.find((p) => sameColour(p.colour, part.paths[0]?.stroke ?? ""));
+                return match ? { ...part, penId: match.id } : part;
+              });
+              pageDispatch({ type: "split", id: selected.id, items: parts });
+            }}
+          >
+            Split into one drawing per colour
+          </button>
         </div>
       )}
       {selected?.photo && <PhotoPanel item={selected} pageDispatch={pageDispatch} locked={locked} />}

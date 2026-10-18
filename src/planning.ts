@@ -83,7 +83,7 @@ interface Instant {
   a: number;
 }
 
-interface AccelerationProfile {
+export interface AccelerationProfile {
   acceleration: number;
   maximumVelocity: number;
   corneringFactor: number;
@@ -298,6 +298,25 @@ interface PenMotionData {
 }
 
 /**
+ * PenPilot: where a plot changes pen. With `wait`, the plot stops here for the
+ * user to put in that pen; it gets here with the pen up and parked at its
+ * start (home) corner. The lines after it are drawn with that pen's heights
+ * (`penUpPos` is its pen-up position).
+ */
+export class PenChange implements Motion {
+  constructor(
+    public penId: string,
+    public penUpPos: number,
+    /** Stop and wait for the user; false just marks which pen draws what follows. */
+    public wait: boolean,
+  ) {}
+
+  public duration(): number {
+    return 0;
+  }
+}
+
+/**
  * Find insertion point of en element on a sorted array, to keep the order.
  * @param array
  * @param obj
@@ -495,19 +514,21 @@ export class XYMotion implements Motion {
 // can be serialized to JSON for POST in the SaxiDriver
 export type SerializedMotion =
   | { type: "xy"; length: number; cols: number[]; ts: number[]; ss: number[] }
-  | { type: "pen"; initialPos: number; finalPos: number; duration: number };
+  | { type: "pen"; initialPos: number; finalPos: number; duration: number }
+  | { type: "penchange"; penId: string; penUpPos: number; wait: boolean };
 
 // for efficient transfers with the worker
 export type TransferredMotion =
   | { type: "xy"; length: number; cols: ArrayBuffer; ts: ArrayBuffer; ss: ArrayBuffer }
-  | { type: "pen"; initialPos: number; finalPos: number; duration: number };
+  | { type: "pen"; initialPos: number; finalPos: number; duration: number }
+  | { type: "penchange"; penId: string; penUpPos: number; wait: boolean };
 
 /**
  * Plotting Plan.
  * Contains a list of pen motions.
  */
 export class Plan {
-  constructor(public motions: (XYMotion | PenMotion)[]) {}
+  constructor(public motions: (XYMotion | PenMotion | PenChange)[]) {}
 
   public serialize(): SerializedMotion[] {
     return this.motions.map((m) => {
@@ -520,6 +541,8 @@ export class Plan {
           ss: Array.from(m.ss),
         };
       }
+      if (m instanceof PenChange)
+        return { type: "penchange" as const, penId: m.penId, penUpPos: m.penUpPos, wait: m.wait };
       return { type: "pen" as const, initialPos: m.initialPos, finalPos: m.finalPos, duration: m.pDuration };
     });
   }
@@ -529,7 +552,9 @@ export class Plan {
       data.map((m) =>
         m.type === "xy"
           ? XYMotion.fromBuffers(new Float64Array(m.cols), new Float64Array(m.ts), new Float64Array(m.ss), m.length)
-          : new PenMotion(m.initialPos, m.finalPos, m.duration),
+          : m.type === "penchange"
+            ? new PenChange(m.penId, m.penUpPos, m.wait)
+            : new PenMotion(m.initialPos, m.finalPos, m.duration),
       ),
     );
   }
@@ -545,6 +570,8 @@ export class Plan {
           ss: m.ss.buffer as ArrayBuffer,
         };
       }
+      if (m instanceof PenChange)
+        return { type: "penchange" as const, penId: m.penId, penUpPos: m.penUpPos, wait: m.wait };
       return { type: "pen" as const, initialPos: m.initialPos, finalPos: m.finalPos, duration: m.pDuration };
     });
   }
@@ -553,7 +580,9 @@ export class Plan {
       data.map((m) =>
         m.type === "xy"
           ? XYMotion.fromBuffers(new Float64Array(m.cols), new Float64Array(m.ts), new Float64Array(m.ss), m.length)
-          : new PenMotion(m.initialPos, m.finalPos, m.duration),
+          : m.type === "penchange"
+            ? new PenChange(m.penId, m.penUpPos, m.wait)
+            : new PenMotion(m.initialPos, m.finalPos, m.duration),
       ),
     );
   }
@@ -581,6 +610,8 @@ export class Plan {
         if (motion instanceof XYMotion) {
           return motion;
         }
+        // (Only used for one-pen plans: every pen change gets the new heights.)
+        if (motion instanceof PenChange) return new PenChange(motion.penId, penUpHeight, motion.wait);
         if (motion instanceof PenMotion) {
           // TODO: Remove this hack by storing the pen-up/pen-down heights
           // in a single place, and reference them from the PenMotions.
@@ -777,7 +808,7 @@ function dedupPoints(points: Vec2[], epsilon: number): Vec2[] {
  * @param profile Tooling profile to use
  * @return A plan of action
  */
-function constantAccelerationPlan(points: Vec2[], profile: AccelerationProfile): XYMotion {
+export function constantAccelerationPlan(points: Vec2[], profile: AccelerationProfile): XYMotion {
   const dedupedPoints = dedupPoints(points, epsilon);
   if (dedupedPoints.length === 1) {
     return XYMotion.fromBlocks([new Block(0, 0, 0, dedupedPoints[0], dedupedPoints[0])]);

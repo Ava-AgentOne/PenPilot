@@ -29,6 +29,8 @@ export interface PenPilotDesktop {
   installDriver(): Promise<ActionResult>;
   openFirmwareUpdater(): Promise<ActionResult>;
   openExternal(url: string): Promise<void>;
+  /** Bounce the Dock icon / flash the taskbar button if PenPilot isn't in front. */
+  attention?(): Promise<void>;
   /** macOS only: talk to the plotter directly instead of via Web Serial. */
   nativeSerial?: NativeSerial;
 }

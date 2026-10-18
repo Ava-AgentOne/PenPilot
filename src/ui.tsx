@@ -3,10 +3,10 @@
  */
 
 import { flattenSVG, type Path } from "flatten-svg";
-import React, { type ChangeEvent, Fragment, useContext, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import React, { type ChangeEvent, useContext, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { PaperSize } from "./paper-size.js";
-import { Device, defaultPlanOptions, Plan, type PlanOptions, type TransferredMotion } from "./planning.js";
+import { Device, defaultPlanOptions, PenChange, Plan, type PlanOptions, type TransferredMotion } from "./planning.js";
 import useComponentSize from "./useComponentSize.js";
 
 import { formatDuration } from "./util.js";
@@ -36,13 +36,26 @@ import {
   type PageItem,
   itemSize,
   pageReducer,
-  plannerPaths,
+  plannerSegments,
 } from "./penpilot/page.js";
 import { DrawingsPanel, OrientationNotes, PageCanvas } from "./penpilot/page-editor.js";
 import { isImageFile, svgToBitmap } from "./penpilot/photo.js";
 import { usePhotoRenderer } from "./penpilot/photo-renderer.js";
 import { usePenText } from "./penpilot/text-renderer.js";
 import { PlotterCheck } from "./penpilot/plotter-check.js";
+import {
+  loadPens,
+  loadSelectedPenId,
+  type Pen,
+  penById,
+  savePens,
+  saveSelectedPenId,
+  testSquarePlan,
+  testSquareSlots,
+  withPen,
+} from "./penpilot/pens.js";
+import { ContinuePanel, chime, PenChangeCard, PensPanel, PlotPens } from "./penpilot/pens-panel.js";
+import { continuePlan, countBelow, drawnLines, partAt, penParts } from "./penpilot/plot-job.js";
 
 const defaultVisualizationOptions = {
   penStrokeWidth: 0.5,
@@ -162,34 +175,35 @@ function attemptRejigger(previousOptions: PlanOptions, newOptions: PlanOptions, 
   return null;
 }
 
-const usePlan = (paths: Path[] | null, planOptions: PlanOptions) => {
+/** PenPilot: what to plan -- one job per pen, in plotting order (see background-planner.ts). */
+type PlanJob = { penId: string; paths: Path[]; planOptions: PlanOptions };
+
+const usePlan = (jobs: PlanJob[] | null) => {
   const [isPlanning, setIsPlanning] = useState(false);
   const [latestPlan, setPlan] = useState<Plan | null>(null);
 
-  const lastPaths = useRef<Path[]>(null);
+  const lastJobs = useRef<PlanJob[]>(null);
   const lastPlan = useRef<Plan>(null);
-  const lastPlanOptions = useRef<PlanOptions>(null);
 
   useEffect(() => {
-    if (!paths) {
+    if (!jobs) {
       return () => {};
     }
-    if (lastPlan.current !== null && lastPaths.current === paths) {
-      const rejiggered = attemptRejigger(lastPlanOptions.current ?? defaultPlanOptions, planOptions, lastPlan.current);
-      if (rejiggered) {
+    const last = lastJobs.current;
+    // One pen and the same lines: if only its heights changed, adjust the plan in place.
+    if (lastPlan.current !== null && last?.length === 1 && jobs.length === 1 && last[0].paths === jobs[0].paths) {
+      const rejiggered = attemptRejigger(last[0].planOptions, jobs[0].planOptions, lastPlan.current);
+      if (rejiggered && last[0].penId === jobs[0].penId) {
         setPlan(rejiggered);
         lastPlan.current = rejiggered;
-        lastPlanOptions.current = planOptions;
+        lastJobs.current = jobs;
         return () => {};
       }
     }
-    lastPaths.current = paths;
     const worker = new Worker("background-planner.js");
     setIsPlanning(true);
     console.time("posting to worker");
-    // FIXME: planOptions contains Set objects which get converted to empty objects {}
-    // during structured cloning. Should use: { paths, planOptions: JSON.parse(serialize(planOptions)) }
-    worker.postMessage({ paths, planOptions });
+    worker.postMessage({ jobs });
     console.timeEnd("posting to worker");
     const listener = (m: MessageEvent<TransferredMotion[]>) => {
       console.time("deserializing");
@@ -197,7 +211,7 @@ const usePlan = (paths: Path[] | null, planOptions: PlanOptions) => {
       console.timeEnd("deserializing");
       setPlan(plan);
       lastPlan.current = plan;
-      lastPlanOptions.current = planOptions;
+      lastJobs.current = jobs;
       setIsPlanning(false);
     };
     worker.addEventListener("message", listener);
@@ -213,7 +227,7 @@ const usePlan = (paths: Path[] | null, planOptions: PlanOptions) => {
       worker.terminate();
       setIsPlanning(false);
     };
-  }, [paths, planOptions]);
+  }, [jobs]);
 
   return { isPlanning, plan: latestPlan, setPlan };
 };
@@ -238,65 +252,6 @@ const setPaths = (paths: Path[]): Action => {
     layerMode,
   };
 };
-
-function PenHeight({ state, driver }: { state: State; driver: BaseDriver }) {
-  const { penUpHeight, penDownHeight, hardware, penLiftReversed } = state.planOptions;
-  const dispatch = useContext(DispatchContext);
-  const setPenUpHeight = (x: number) => dispatch({ type: "SET_PLAN_OPTION", value: { penUpHeight: x } });
-  const setPenDownHeight = (x: number) => dispatch({ type: "SET_PLAN_OPTION", value: { penDownHeight: x } });
-  const setPenLiftReversed = (x: boolean) => dispatch({ type: "SET_PLAN_OPTION", value: { penLiftReversed: x } });
-  const device = Device(hardware, penLiftReversed);
-
-  const penUp = () => {
-    const height = device.penPctToPos(penUpHeight);
-    driver.setPenHeight(height, 1000);
-  };
-  const penDown = () => {
-    const height = device.penPctToPos(penDownHeight);
-    driver.setPenHeight(height, 1000);
-  };
-  return (
-    <Fragment>
-      <div className="flex">
-        <label className="pen-label">
-          up height (%)
-          <input
-            type="number"
-            min="0"
-            max="100"
-            value={penUpHeight}
-            onChange={(e) => setPenUpHeight(parseInt(e.target.value, 10))}
-          />
-        </label>
-        <label className="pen-label">
-          down height (%)
-          <input
-            type="number"
-            min="0"
-            max="100"
-            value={penDownHeight}
-            onChange={(e) => setPenDownHeight(parseInt(e.target.value, 10))}
-          />
-        </label>
-      </div>
-      <div className="flex">
-        <button type="button" onClick={penUp}>
-          pen up
-        </button>
-        <button type="button" onClick={penDown}>
-          pen down
-        </button>
-      </div>
-      <label
-        className="pp-checkbox"
-        title="Tick this if pressing 'pen up' lowers the pen on your plotter. Common on AxiDraw-compatible clones."
-      >
-        <input type="checkbox" checked={penLiftReversed} onChange={(e) => setPenLiftReversed(e.target.checked)} />
-        Reverse pen direction
-      </label>
-    </Fragment>
-  );
-}
 
 function HardwareOptions({ state, driver }: { state: State; driver: BaseDriver | null }) {
   const dispatch = useContext(DispatchContext);
@@ -331,38 +286,16 @@ function HardwareOptions({ state, driver }: { state: State; driver: BaseDriver |
   );
 }
 
-function VisualizationOptions({ state }: { state: State }) {
-  const dispatch = useContext(DispatchContext);
-
+/** PenPilot: draw the page's lines as wide as each pen really draws them. */
+function RealWidthOption({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
   return (
-    <>
-      <label title="Width of lines in preview. Does not affect plot.">
-        visualized stroke width (mm)
-        <input
-          type="number"
-          value={state.visualizationOptions.penStrokeWidth}
-          min="0"
-          max="10"
-          step="0.1"
-          onChange={(e) =>
-            dispatch({ type: "SET_VISUALIZATION_OPTION", value: { penStrokeWidth: Number(e.target.value) } })
-          }
-        />
-      </label>
-      <label
-        className="flex-checkbox"
-        title="Color paths in the preview based on the order in which they will be plotted. Yellow is first, pink is last."
-      >
-        <input
-          type="checkbox"
-          checked={state.visualizationOptions.colorPathsByStrokeOrder}
-          onChange={(e) =>
-            dispatch({ type: "SET_VISUALIZATION_OPTION", value: { colorPathsByStrokeOrder: !!e.target.checked } })
-          }
-        />
-        color based on order
-      </label>
-    </>
+    <label
+      className="pp-checkbox"
+      title="Show the lines as wide as each pen's line width, to see how dark the drawing and its hatching will look on paper"
+    >
+      <input type="checkbox" checked={value} onChange={(e) => onChange(e.target.checked)} />
+      Show lines at the pen's real width
+    </label>
   );
 }
 
@@ -634,27 +567,23 @@ function LayerSelector({ state }: { state: State }) {
 function PlotButtons({
   state,
   plan,
+  hasLines,
   isPlanning,
   driver,
+  stopping,
+  onPlot,
+  onStop,
 }: {
   state: State;
   plan: Plan | null;
+  hasLines: boolean;
   isPlanning: boolean;
-  driver: BaseDriver;
+  driver: BaseDriver | null;
+  stopping: boolean;
+  onPlot: () => void;
+  onStop: () => void;
 }) {
-  function cancel() {
-    driver.cancel();
-  }
-  function pause() {
-    driver.pause();
-  }
-  function resume() {
-    driver.resume();
-  }
-  function plot(plan: Plan) {
-    driver.plot(plan);
-  }
-
+  const plotting = state.progress !== null;
   return (
     <div>
       {isPlanning ? (
@@ -664,29 +593,29 @@ function PlotButtons({
       ) : (
         <button
           type="button"
-          className={`plot-button ${state.progress !== null ? "plot-button--plotting" : ""}`}
-          disabled={plan === null || state.progress !== null}
-          onClick={() => plan && plot(plan)}
+          className={`plot-button ${plotting ? "plot-button--plotting" : ""}`}
+          disabled={plan === null || !hasLines || plotting || !driver}
+          onClick={onPlot}
         >
-          {plan && state.progress !== null ? "Plotting..." : "Plot"}
+          {plotting ? (stopping ? "Stopping…" : "Plotting...") : "Plot"}
         </button>
       )}
       <div className={"button-row"}>
         <button
           type="button"
-          className={`cancel-button ${state.progress !== null ? "cancel-button--active" : ""}`}
-          onClick={state.paused ? resume : pause}
-          disabled={plan === null || state.progress === null}
+          className={`cancel-button ${plotting ? "cancel-button--active" : ""}`}
+          onClick={() => (state.paused ? driver?.resume() : driver?.pause())}
+          disabled={plan === null || !plotting || stopping}
         >
           {state.paused ? "Resume" : "Pause"}
         </button>
         <button
           type="button"
-          className={`cancel-button ${state.progress !== null ? "cancel-button--active" : ""}`}
-          onClick={cancel}
-          disabled={plan === null || state.progress === null}
+          className={`cancel-button ${plotting ? "cancel-button--active" : ""}`}
+          onClick={onStop}
+          disabled={plan === null || !plotting || stopping}
         >
-          Cancel
+          Stop
         </button>
       </div>
     </div>
@@ -777,18 +706,6 @@ function PlanConfig({ state }: { state: State }) {
               min="0"
               onChange={(e) =>
                 dispatch({ type: "SET_PLAN_OPTION", value: { penDownAcceleration: Number(e.target.value) } })
-              }
-            />
-          </label>
-          <label title="Maximum velocity when the pen is down (in mm/s)">
-            down max vel. (mm/s)
-            <input
-              type="number"
-              value={state.planOptions.penDownMaxVelocity}
-              step="0.1"
-              min="0"
-              onChange={(e) =>
-                dispatch({ type: "SET_PLAN_OPTION", value: { penDownMaxVelocity: Number(e.target.value) } })
               }
             />
           </label>
@@ -952,49 +869,177 @@ function Root() {
     }),
     [state.planOptions, layout.drawable],
   );
-  const { isPlanning, plan, setPlan } = usePlan(state.paths, plannerOptions);
+  // PenPilot: your pens (pens.ts). `penId` is the one being set up, which new drawings get.
+  const [pens, setPensState] = useState<Pen[]>(() => loadPens(initialState.planOptions));
+  const setPens = (list: Pen[]) => {
+    setPensState(list);
+    savePens(list);
+  };
+  const [penId, setPenIdState] = useState(() => loadSelectedPenId(pens));
+  const setPenId = (id: string) => {
+    setPenIdState(id);
+    saveSelectedPenId(id);
+  };
+  const penOf = React.useCallback((it: PageItem) => penById(pens, it.penId), [pens]);
+  const withCurrentPen = (it: PageItem): PageItem => ({ ...it, penId });
+
+  // The page's lines, one group per pen; each is planned with its pen's settings.
+  const [segments, setSegments] = useState<{ penId: string; paths: Path[] }[] | null>(null);
+  // Only a pen's heights and speed change the plan (not its name or colour).
+  const penSettingsKey = JSON.stringify(pens.map((p) => [p.id, p.upHeight, p.downHeight, p.speed]));
+  // biome-ignore lint/correctness/useExhaustiveDependencies: recomputed only when penSettingsKey changes
+  const planPens = useMemo(() => pens, [penSettingsKey]);
+  const jobs = useMemo(
+    () =>
+      segments?.map((sg) => ({
+        penId: sg.penId,
+        paths: sg.paths,
+        planOptions: withPen(plannerOptions, penById(planPens, sg.penId)),
+      })) ?? null,
+    [segments, plannerOptions, planPens],
+  );
+  const { isPlanning, plan, setPlan } = usePlan(jobs);
+  const planRef = useRef(plan);
+  planRef.current = plan;
+  const lines = useMemo(() => (plan ? drawnLines(plan) : []), [plan]);
+  const usedPens = useMemo(() => (plan ? penParts(plan).map((p) => penById(pens, p.penId)) : []), [plan, pens]);
   const [isLoadingFile, setIsLoadingFile] = useState(false);
 
-  // Replan when the drawings' lines, fill or placement change -- not when one is
-  // merely selected or a photo reports progress -- once edits settle.
+  // After a stop: how far it got, and the line to carry on from (see ContinuePanel).
+  const [stopped, setStopped] = useState<{ done: number; penId: string | null } | null>(null);
+  const [continueFrom, setContinueFrom] = useState(0);
+
+  // Replan when the drawings' lines, fill, pen or placement change -- not when
+  // one is merely selected or a photo reports progress -- once edits settle.
   const pageItems = page.items;
   usePhotoRenderer(pageItems, pageDispatch);
   usePenText(pageItems, pageDispatch);
   const lastGeometry = useRef<unknown[] | null>(null);
   // biome-ignore lint/correctness/useExhaustiveDependencies(setPlan): React setters are stable
   useEffect(() => {
-    const geometry: unknown[] = [layout.placement, pageSize];
-    for (const it of pageItems) geometry.push(it.id, it.name, it.paths, it.fill, it.x, it.y, it.scale, it.rotation);
+    const geometry: unknown[] = [layout.placement, pageSize, pens.map((p) => p.id).join()];
+    for (const it of pageItems) {
+      geometry.push(it.id, it.name, it.paths, it.fill, it.x, it.y, it.scale, it.rotation, penOf(it).id);
+    }
     const last = lastGeometry.current;
     if (last && last.length === geometry.length && last.every((v, i) => v === geometry[i])) return;
     const timer = setTimeout(() => {
       lastGeometry.current = geometry;
+      setStopped(null); // the drawings changed: "continue from line" no longer fits
       const drawable = pageItems.filter((it) => it.paths.length > 0);
       if (drawable.length === 0) {
         dispatch({ type: "CLEAR_PATHS" });
+        setSegments(null);
         setPlan(null);
       } else {
-        dispatch(setPaths(plannerPaths({ items: drawable, selectedId: null }, layout.placement, pageSize)));
+        const page = { items: drawable, selectedId: null };
+        const order = pens.map((p) => p.id);
+        const segs = plannerSegments(page, layout.placement, pageSize, (it) => penOf(it).id, order);
+        dispatch(setPaths(segs.flatMap((sg) => sg.paths)));
+        setSegments(segs);
       }
     }, 300);
     return () => clearTimeout(timer);
-  }, [pageItems, layout.placement, pageSize]);
+  }, [pageItems, layout.placement, pageSize, pens, penOf]);
 
-  // Frame: trace the drawing's outline with the pen up (see penpilot/frame.ts).
-  const [framing, setFraming] = useState(false);
-  const framingRef = useRef(false);
+  // Jobs that aren't the page's plot: Frame (pen up round the drawing) and the
+  // pen test square. Their progress isn't shown on the page.
+  type SideJob = "frame" | "test" | null;
+  const [sideJob, setSideJobState] = useState<SideJob>(null);
+  const sideJobRef = useRef<SideJob>(null);
+  const setSideJob = (j: SideJob) => {
+    sideJobRef.current = j;
+    setSideJobState(j);
+  };
+  const framing = sideJob === "frame";
   const [frameLoop, setFrameLoop] = useState(false);
   const frameLoopRef = useRef(false);
   frameLoopRef.current = frameLoop;
+  const [stopping, setStopping] = useState(false);
+  const [penChange, setPenChange] = useState<string | null>(null);
+  const [fileMessage, setFileMessage] = useState<string | null>(null);
+
+  // Every plot goes through here. `toFull` maps a continued plot's progress
+  // onto the full plan, so the page shows the whole drawing's progress.
+  // `penIn`: the pen in the plotter when it starts (null: the plan's first pen).
+  const progressMap = useRef<(i: number) => number>((i) => i);
+  const lastProgress = useRef<number | null>(null);
+  const run = useRef<{ plan: Plan; penIn: string | null; at: number | null } | null>(null);
+  const runPlot = (p: Plan, toFull: (i: number) => number = (i) => i, penIn: string | null = null) => {
+    if (!driver) return;
+    progressMap.current = toFull;
+    lastProgress.current = null;
+    run.current = { plan: p, penIn, at: null };
+    setStopping(false);
+    Promise.resolve(driver.plot(p)).catch((e) => {
+      console.error(e);
+      const wasSide = sideJobRef.current !== null;
+      setSideJob(null);
+      setPenChange(null);
+      setStopping(false);
+      dispatch({ type: "SET_PAUSED", value: false });
+      if (!wasSide) noteStopRef.current(true);
+      dispatch({ type: "SET_PROGRESS", motionIdx: null });
+      setFileMessage(
+        "The plotter stopped answering, so the plot stopped. Check the USB cable and the motor power. " +
+          "Then push the carriage back to its home corner by hand and use Continue from line.",
+      );
+    });
+  };
+
+  // Remember where a plot stopped. `unsure`: it stopped mid-move (e.g. the
+  // cable came out), so redo the line it was on.
+  const noteStop = (unsure: boolean) => {
+    const at = lastProgress.current;
+    const pl = planRef.current;
+    if (at === null || !pl) return;
+    const all = drawnLines(pl);
+    const done = countBelow(all, unsure ? at : at + 1);
+    if (done === 0 || done >= all.length) {
+      setStopped(null);
+      return;
+    }
+    // The pen in the plotter now. Stopped while waiting for a pen: the old one is still in.
+    let penIn = run.current?.penIn ?? null;
+    const r = run.current;
+    if (r && r.at !== null) {
+      const m = r.plan.motions[r.at];
+      penIn = partAt(penParts(r.plan), m instanceof PenChange && m.wait ? r.at - 1 : r.at)?.penId ?? penIn;
+    }
+    setStopped({ done, penId: penIn });
+    setContinueFrom(done);
+  };
+  const noteStopRef = useRef(noteStop);
+  noteStopRef.current = noteStop;
+
+  const startPlot = () => {
+    if (!plan) return;
+    setStopped(null);
+    runPlot(plan);
+  };
+  const continuePlot = () => {
+    if (!plan || !stopped) return;
+    const c = continuePlan(plan, continueFrom, state.planOptions, stopped.penId);
+    if (!c) return;
+    setStopped(null);
+    runPlot(c.plan, c.toFull, stopped.penId);
+  };
+  const stopPlot = () => {
+    setStopping(true);
+    driver?.cancel();
+  };
+
+  // Frame: trace the drawing's outline with the pen up (see penpilot/frame.ts),
+  // at the pen-up height of the pen the plot starts with.
+  const firstPen = usedPens[0] ?? penById(pens, penId);
   const frameBox = useMemo(
     () => drawingBoxOnMachine(page, layout.placement, pageSize, layout.drawable),
     [page, layout, pageSize],
   );
   const startFrame = () => {
     if (!driver || !frameBox) return;
-    framingRef.current = true;
-    setFraming(true);
-    driver.plot(framePlan(frameBox, state.planOptions));
+    setSideJob("frame");
+    runPlot(framePlan(frameBox, withPen(state.planOptions, firstPen)));
   };
   const startFrameRef = useRef(startFrame);
   startFrameRef.current = startFrame;
@@ -1002,6 +1047,16 @@ function Root() {
     frameLoopRef.current = false;
     setFrameLoop(false);
     driver?.cancel();
+  };
+
+  // Test square: each one goes a little further along the paper's edge.
+  const testSlot = useRef(0);
+  const startTest = (pen: Pen) => {
+    if (!driver) return;
+    const slot = testSlot.current % testSquareSlots(layout.drawable.x);
+    testSlot.current += 1;
+    setSideJob("test");
+    runPlot(testSquarePlan(pen, state.planOptions, slot));
   };
 
   useEffect(() => {
@@ -1012,22 +1067,42 @@ function Root() {
   useEffect(() => {
     if (driver === null) return;
     driver.onprogress = (motionIdx: number) => {
-      if (!framingRef.current) dispatch({ type: "SET_PROGRESS", motionIdx });
+      if (sideJobRef.current) return;
+      if (run.current) run.current.at = motionIdx;
+      const full = progressMap.current(motionIdx);
+      lastProgress.current = full;
+      dispatch({ type: "SET_PROGRESS", motionIdx: full });
     };
     driver.oncancelled = () => {
-      framingRef.current = false;
-      setFraming(false);
+      setPenChange(null);
+      setStopping(false);
+      if (sideJobRef.current) {
+        sideJobRef.current = null;
+        setSideJobState(null);
+      } else noteStopRef.current(false);
+      dispatch({ type: "SET_PAUSED", value: false });
       dispatch({ type: "SET_PROGRESS", motionIdx: null });
     };
     driver.onfinished = () => {
-      if (framingRef.current) {
-        framingRef.current = false;
-        setFraming(false);
+      setPenChange(null);
+      setStopping(false);
+      const was = sideJobRef.current;
+      if (was) {
+        sideJobRef.current = null;
+        setSideJobState(null);
         // "Keep going round": start the next lap once this one has finished.
-        if (frameLoopRef.current) setTimeout(() => startFrameRef.current(), 0);
+        if (was === "frame" && frameLoopRef.current) setTimeout(() => startFrameRef.current(), 0);
         return;
       }
+      setStopped(null);
       dispatch({ type: "SET_PROGRESS", motionIdx: null });
+    };
+    driver.onpenchange = (id: string | null) => {
+      setPenChange(id);
+      if (id) {
+        chime();
+        void desktop?.attention?.();
+      }
     };
     driver.ondevinfo = (devInfo: DeviceInfo) => {
       dispatch({ type: "SET_DEVICE_INFO", value: devInfo });
@@ -1052,9 +1127,8 @@ function Root() {
     return () => clearInterval(interval);
   }, [driver, state.connected]);
 
-  // PenPilot: say plainly when a file can't be plotted, instead of leaving
-  // "Loading file..." on screen (saxi's readSvg used to throw on non-SVG input).
-  const [fileMessage, setFileMessage] = useState<string | null>(null);
+  // PenPilot: say plainly when a file can't be plotted (fileMessage), instead of
+  // leaving "Loading file..." on screen (saxi's readSvg used to throw on non-SVG input).
 
   const loadSvgText = React.useCallback(
     (text: string, name: string) => {
@@ -1071,7 +1145,7 @@ function Root() {
         return;
       }
       const created = newItem(name, paths, pageSize, marginMm);
-      const item = created && { ...created, svgText: text, fillOnly: isFillOnlySvg(text) };
+      const item = created && { ...created, svgText: text, fillOnly: isFillOnlySvg(text), penId };
       if (!item) {
         setFileMessage(`“${name}” has no lines for the pen to draw. It may contain only a picture.`);
         return;
@@ -1079,7 +1153,7 @@ function Root() {
       setFileMessage(null);
       pageDispatch({ type: "add", items: [item] });
     },
-    [pageSize, marginMm],
+    [pageSize, marginMm, penId],
   );
 
   // An SVG of filled shapes -> the same drawing as a centre-line trace, same size and place.
@@ -1098,6 +1172,7 @@ function Root() {
           ...traced,
           rotation: item.rotation,
           scale: (sourceWidthMm + 2 * pad) / photoWidthPx,
+          penId: item.penId,
         };
         const after = itemSize(next);
         next = { ...next, x: item.x + (before.x - after.x) / 2, y: item.y + (before.y - after.y) / 2 };
@@ -1118,7 +1193,8 @@ function Root() {
         createImageBitmap(file)
           .then((bitmap) => {
             const url = URL.createObjectURL(file);
-            pageDispatch({ type: "add", items: [newPhotoItem(file.name, bitmap, url, pageSize, marginMm)] });
+            const photo = { ...newPhotoItem(file.name, bitmap, url, pageSize, marginMm), penId };
+            pageDispatch({ type: "add", items: [photo] });
             setFileMessage(null);
           })
           .catch(() => setFileMessage(`PenPilot couldn't open the picture “${file.name}”.`))
@@ -1145,7 +1221,7 @@ function Root() {
       };
       reader.readAsText(file);
     },
-    [loadSvgText, pageSize, marginMm],
+    [loadSvgText, pageSize, marginMm, penId],
   );
 
   useEffect(() => {
@@ -1185,13 +1261,50 @@ function Root() {
     return new Date();
   }, [state.progress, state.paused]);
 
-  const previewArea = useRef(null);
+  const previewArea = useRef<HTMLDivElement>(null);
   const previewSize = useComponentSize(previewArea);
+  // The plot block is fixed to the bottom of the panel and grows (pens, continue
+  // from line), so the scroll spacer follows its height.
+  const plotBlock = useRef<HTMLDivElement>(null);
+  const plotBlockSize = useComponentSize(plotBlock);
   const showDragTarget = page.items.length === 0 && !isLoadingFile;
-  const locked = state.progress !== null || framing;
+  const plotting = state.progress !== null;
+  const locked = plotting || sideJob !== null;
+  const connected = !!driver?.connected && state.connected;
+  const canMovePen = connected && sideJob === null && (!plotting || state.paused);
+  const device = Device(hardware, state.planOptions.penLiftReversed);
   const addFiles = (files: File[]) => {
     for (const f of files) handleFile(f);
   };
+  // PenPilot: draw lines at the pen's real width (saved on this computer).
+  const [trueWidth, setTrueWidthState] = useState(() => {
+    try {
+      return window.localStorage.getItem("penpilot.trueWidth") !== "false";
+    } catch {
+      return true;
+    }
+  });
+  const setTrueWidth = (v: boolean) => {
+    setTrueWidthState(v);
+    try {
+      window.localStorage.setItem("penpilot.trueWidth", String(v));
+    } catch {
+      // ignore
+    }
+  };
+  // Swap two pens in the plotting order (the order of the pens list).
+  const plotPenEarlier = (i: number) => {
+    const a = pens.findIndex((p) => p.id === usedPens[i - 1]?.id);
+    const b = pens.findIndex((p) => p.id === usedPens[i]?.id);
+    if (a < 0 || b < 0) return;
+    const next = pens.slice();
+    [next[a], next[b]] = [next[b], next[a]];
+    setPens(next);
+  };
+  const showContinue = stopped !== null && !locked && plan !== null && lines.length > 0;
+  const from = Math.min(continueFrom, Math.max(0, lines.length - 1));
+  const changingTo = penChange ? penById(pens, penChange) : null;
+  const changeNumber = penChange ? Math.max(1, usedPens.findIndex((p) => p.id === penChange) + 1) : 0;
 
   return (
     <DispatchContext.Provider value={dispatch}>
@@ -1213,12 +1326,7 @@ function Root() {
           )}
           {IS_WEB && desktop && (
             <div className="section-body">
-              <PlotterCheck
-                driver={driver}
-                setDriver={setDriver}
-                hardware={state.planOptions.hardware}
-                busy={state.progress !== null}
-              />
+              <PlotterCheck driver={driver} setDriver={setDriver} hardware={state.planOptions.hardware} busy={locked} />
             </div>
           )}
           {IS_WEB && !desktop && (
@@ -1228,9 +1336,23 @@ function Root() {
               hardware={(driver as WebSerialDriver)?.ebb?.hardware ?? state.planOptions.hardware}
             />
           )}
-          <div className="section-header">pen</div>
+          <div className="section-header">pens</div>
           <div className="section-body">
-            <PenHeight state={state} driver={driver} />
+            <PensPanel
+              pens={pens}
+              setPens={setPens}
+              penId={penId}
+              setPenId={setPenId}
+              driver={driver}
+              device={device}
+              canMovePen={canMovePen}
+              locked={locked}
+              testing={sideJob === "test"}
+              canTest={canMovePen && !plotting}
+              onTest={startTest}
+              penLiftReversed={state.planOptions.penLiftReversed}
+              setPenLiftReversed={(v) => dispatch({ type: "SET_PLAN_OPTION", value: { penLiftReversed: v } })}
+            />
             <MotorControl driver={driver} />
             <HardwareOptions state={state} driver={driver} />
             <ResetToDefaultsButton />
@@ -1263,29 +1385,32 @@ function Root() {
               marginMm={marginMm}
               drawable={layout.drawableOnPage}
               locked={locked}
+              pens={pens}
+              penOf={penOf}
               onAddFiles={addFiles}
               onTraceSvg={traceSvgItem}
-              onAddText={() => pageDispatch({ type: "add", items: [newTextItem(pageSize)] })}
+              onAddText={() => pageDispatch({ type: "add", items: [withCurrentPen(newTextItem(pageSize))] })}
             />
             <LayerSelector state={state} />
           </div>
           <details>
             <summary className="section-header">more</summary>
             <div className="section-body">
+              <RealWidthOption value={trueWidth} onChange={setTrueWidth} />
               <PlanConfig state={state} />
               <OriginOptions state={state} />
-              <VisualizationOptions state={state} />
             </div>
           </details>
-          <div className="spacer" />
-          <div className="control-panel-bottom">
+          <div className="spacer" style={{ height: Math.max(350, plotBlockSize.height + 20) }} />
+          <div className="control-panel-bottom" ref={plotBlock}>
             <div className="section-header">plot</div>
             <div className="section-body section-body__plot">
               <PlanStatistics plan={plan} />
+              <PlotPens used={usedPens} onEarlier={plotPenEarlier} locked={locked} />
               <div className="pp-frame">
                 <button
                   type="button"
-                  disabled={framing ? false : !driver?.connected || !frameBox || state.progress !== null}
+                  disabled={framing ? false : !connected || !frameBox || locked}
                   onClick={framing ? stopFrame : startFrame}
                   title="Move the lifted pen around the area the drawing will cover, to line up the paper"
                 >
@@ -1302,7 +1427,32 @@ function Root() {
                 currentMotionStartedTime={currentMotionStartedTime}
                 paused={state.paused}
               />
-              <PlotButtons plan={plan} isPlanning={isPlanning} state={state} driver={driver} />
+              {state.paused && !penChange && (
+                <div className="pp-note pp-paused">
+                  Paused with the pen lifted. You can swap the pen now, then press Resume to carry on.
+                </div>
+              )}
+              {showContinue && stopped && (
+                <ContinuePanel
+                  done={stopped.done}
+                  total={lines.length}
+                  from={from}
+                  setFrom={setContinueFrom}
+                  canPlot={connected && !isPlanning}
+                  onContinue={continuePlot}
+                  onForget={() => setStopped(null)}
+                />
+              )}
+              <PlotButtons
+                plan={plan}
+                hasLines={lines.length > 0}
+                isPlanning={isPlanning}
+                state={state}
+                driver={sideJob === null ? driver : null}
+                stopping={stopping}
+                onPlot={startPlot}
+                onStop={stopPlot}
+              />
             </div>
           </div>
         </div>
@@ -1316,8 +1466,10 @@ function Root() {
             drawable={layout.drawableOnPage}
             plan={plan}
             stepsPerMm={Device(hardware).stepsPerMm}
-            progress={framing ? null : state.progress}
+            progress={sideJob ? null : (state.progress ?? (showContinue ? (lines[from] ?? null) : null))}
             locked={locked}
+            penOf={penOf}
+            trueWidth={trueWidth}
             previewSize={{ width: Math.max(0, previewSize.width - 40), height: Math.max(0, previewSize.height - 40) }}
           />
           <PlanLoader isPlanning={isPlanning} isLoadingFile={isLoadingFile} />
@@ -1328,6 +1480,18 @@ function Root() {
                 ×
               </button>
             </div>
+          )}
+          {changingTo && (
+            <PenChangeCard
+              pen={changingTo}
+              number={changeNumber}
+              of={Math.max(changeNumber, usedPens.length)}
+              canMovePen={connected}
+              onLower={() => driver?.setPenHeight(device.penPctToPos(changingTo.downHeight), 1000)}
+              onRaise={() => driver?.setPenHeight(device.penPctToPos(changingTo.upHeight), 1000)}
+              onContinue={() => driver?.resume()}
+              onStop={stopPlot}
+            />
           )}
           {showDragTarget && <DragTarget handleFile={handleFile} />}
         </div>

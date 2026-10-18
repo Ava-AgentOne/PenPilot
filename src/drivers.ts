@@ -1,5 +1,5 @@
 import { EBB, type EBBPort, type Hardware } from "./ebb.js";
-import { Device, PenMotion, Plan } from "./planning.js";
+import { constantAccelerationPlan, Device, PenChange, PenMotion, Plan, XYMotion } from "./planning.js";
 
 export interface DeviceInfo {
   path: string;
@@ -15,6 +15,8 @@ export abstract class BaseDriver {
   public onfinished: () => void = () => {};
   public ondevinfo: (devInfo: DeviceInfo) => void = () => {};
   public onpause: (paused: boolean) => void = () => {};
+  /** PenPilot: the plot is waiting for this pen to be put in (null: it's going again). */
+  public onpenchange: (penId: string | null) => void = () => {};
   public connected = false;
   /**
    * Called when plan loaded
@@ -125,48 +127,95 @@ export class WebSerialDriver extends BaseDriver {
     // position. Use it rather than assuming "up" is the larger servo value,
     // which isn't true for reversed pen-lift motors (penLiftReversed).
     const firstPenMotion = plan.motions.find((motion): motion is PenMotion => motion instanceof PenMotion);
-    const penUpPosition = firstPenMotion?.initialPos;
+    let penUpPosition = firstPenMotion?.initialPos;
     // Lift the pen before the first travel move (as saxi's server mode does),
     // in case it was left down, e.g. after testing "pen down".
     if (penUpPosition !== undefined) await this.ebb.setPenHeight(penUpPosition, 1000, 1000);
+
+    // PenPilot: where the carriage started (its home corner) and where it is
+    // now, in steps, so a stopped plot can drive back home.
+    const firstMove = plan.motions.find((motion): motion is XYMotion => motion instanceof XYMotion);
+    const start = firstMove?.p1 ?? { x: 0, y: 0 };
+    let at = start;
 
     let motionIdx = 0;
     let penIsUp = true;
     for (const motion of plan.motions) {
       this.onprogress(motionIdx);
+      if (motion instanceof PenChange) {
+        if (motion.wait) {
+          // PenPilot: the pen is up and parked at home. Wait for the next pen.
+          this._unpaused = new Promise((resolve) => {
+            this._signalUnpause = resolve;
+          });
+          this.onpause(true);
+          this.onpenchange(motion.penId);
+          await this._unpaused;
+          this.onpenchange(null);
+          this.onpause(false);
+          if (this._cancelRequested) break;
+        }
+        // Lift to this pen's height (it may have been lowered to fit the pen).
+        if (motion.wait || motion.penUpPos !== penUpPosition) {
+          penUpPosition = motion.penUpPos;
+          await this.ebb.setPenHeight(penUpPosition, 1000, 1000);
+        }
+        penIsUp = true;
+        motionIdx += 1;
+        continue;
+      }
       await this.ebb.executeMotion(motion);
+      if (motion instanceof XYMotion) at = motion.p2;
       if (motion instanceof PenMotion) {
         penIsUp = penUpPosition !== undefined ? motion.finalPos === penUpPosition : motion.initialPos < motion.finalPos;
       }
       if (this._unpaused && penIsUp) {
         await this._unpaused;
         this.onpause(false);
+        // PenPilot: the pen may have been lowered while paused (e.g. to swap it).
+        if (!this._cancelRequested && penUpPosition !== undefined) {
+          await this.ebb.setPenHeight(penUpPosition, 1000, 1000);
+        }
       }
       if (this._cancelRequested) { break; } // biome-ignore format: compactness
       motionIdx += 1;
     }
 
     if (this._cancelRequested) {
+      // PenPilot: always lift the pen and drive back to the home corner (saxi
+      // only did when the pen was down), so the next plot -- or "continue from
+      // line" -- starts where it expects. A normal move works on any firmware.
       const device = Device(this.ebb.hardware);
-      if (!penIsUp) {
-        // Move to the pen up position, or 50% if no position was found
-        await this.ebb.setPenHeight(penUpPosition ?? device.penPctToPos(50), 1000);
-        await this.ebb.command("HM,4000"); // HM returns carriage home without 3rd and 4th arguments
+      await this.ebb.setPenHeight(penUpPosition ?? device.penPctToPos(50), 1000, 1000);
+      if (Math.hypot(at.x - start.x, at.y - start.y) > 0.5) {
+        const spm = device.stepsPerMm;
+        await this.ebb.executeXYMotion(
+          constantAccelerationPlan([at, start], {
+            acceleration: 400 * spm,
+            maximumVelocity: 100 * spm,
+            corneringFactor: 0,
+          }),
+        );
       }
-      this.oncancelled();
-    } else {
-      this.onfinished();
     }
 
+    // PenPilot: tell the UI only once the carriage has stopped and the motors
+    // are off, so a new plot (e.g. "continue from line") can't start while
+    // this one is still driving home and then have its motors switched off.
     await this.ebb.waitUntilMotorsIdle();
     await this.ebb.disableMotors();
+    if (this._cancelRequested) this.oncancelled();
+    else this.onfinished();
   }
 
   public cancel(): void {
     this._cancelRequested = true;
+    // PenPilot: a paused plot (or one waiting for a pen change) stops too.
+    this.resume();
   }
 
   public pause(): void {
+    if (this._unpaused) return; // already paused: keep the one the plot is waiting on
     this._unpaused = new Promise((resolve) => {
       this._signalUnpause = resolve;
     });

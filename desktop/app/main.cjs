@@ -199,6 +199,17 @@ function setUpIpc() {
   ipcMain.handle("penpilot:request-plotter-port", (event) => requestPlotterPort(event.sender));
   ipcMain.handle("penpilot:install-driver", () => installWindowsDriver());
   ipcMain.handle("penpilot:open-firmware-updater", () => openFirmwareUpdater());
+  // Draw the user's eye when the plot needs them (e.g. to change pen) while
+  // PenPilot is in the background: bounce the Dock icon / flash the taskbar.
+  ipcMain.handle("penpilot:attention", (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win || win.isFocused()) return;
+    if (process.platform === "darwin") app.dock?.bounce("critical");
+    else {
+      win.flashFrame(true);
+      win.once("focus", () => win.flashFrame(false));
+    }
+  });
   ipcMain.handle("penpilot:open-external", (_event, url) => {
     if (typeof url === "string" && /^https:\/\//.test(url)) shell.openExternal(url);
   });

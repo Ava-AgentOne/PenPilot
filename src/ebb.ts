@@ -1,4 +1,4 @@
-import { type Motion, PenMotion, type Plan, XYMotion } from "./planning.js";
+import { type Motion, PenChange, PenMotion, type Plan, XYMotion } from "./planning.js";
 import { type Vec2, vsub } from "./vec.js";
 
 enum MicrostepMode {
@@ -473,6 +473,8 @@ export class EBB {
     if (m instanceof PenMotion) {
       return this.executePenMotion(m);
     }
+    // PenPilot: a pen change is handled by the driver (it waits for the user).
+    if (m instanceof PenChange) return Promise.resolve();
     throw new Error(`Unknown motion type: ${m.constructor.name}`);
   }
 

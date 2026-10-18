@@ -59,6 +59,8 @@ export interface PageItem {
   text?: TextInfo;
   /** Hatch fill for the item's closed shapes. */
   fill?: FillInfo;
+  /** The pen that draws it (see pens.ts); missing or unknown = the first pen. */
+  penId?: string;
 }
 
 // ---- What actually gets drawn ----------------------------------------------------
@@ -235,12 +237,29 @@ export function drawableArea(placement: Placement, page: Size, reach: Size | nul
  * planner expects with fitPage off). Each item becomes its own layer group.
  */
 export function plannerPaths(page: Page, placement: Placement, pageSize: Size): Path[] {
-  const out: Path[] = [];
+  return plannerSegments(page, placement, pageSize, () => "").flatMap((s) => s.paths);
+}
+
+/**
+ * The same lines, grouped by the pen that draws them: one group per pen id
+ * that `penOf` gives, in the order of `penOrder` (then any others, in page order).
+ */
+export function plannerSegments(
+  page: Page,
+  placement: Placement,
+  pageSize: Size,
+  penOf: (item: PageItem) => string,
+  penOrder: string[] = [],
+): { penId: string; paths: Path[] }[] {
+  const byPen = new Map<string, Path[]>();
   const names = new Map<string, number>();
   for (const item of page.items) {
     const seen = names.get(item.name) ?? 0;
     names.set(item.name, seen + 1);
     const groupId = seen === 0 ? item.name : `${item.name} (${seen + 1})`;
+    const penId = penOf(item);
+    const out = byPen.get(penId) ?? [];
+    byPen.set(penId, out);
     for (const path of itemDrawnPaths(item).paths) {
       out.push({
         stroke: path.stroke,
@@ -252,7 +271,37 @@ export function plannerPaths(page: Page, placement: Placement, pageSize: Size): 
       });
     }
   }
-  return out;
+  const rank = (id: string) => {
+    const i = penOrder.indexOf(id);
+    return i < 0 ? penOrder.length : i;
+  };
+  return [...byPen.entries()]
+    .map(([penId, paths], i) => ({ penId, paths, i }))
+    .sort((a, b) => rank(a.penId) - rank(b.penId) || a.i - b.i)
+    .map(({ penId, paths }) => ({ penId, paths }));
+}
+
+/** The different line colours in a drawing (as written in its file). */
+export function strokeColours(item: PageItem): string[] {
+  return [...new Set(item.paths.map((p) => p.stroke || "none"))];
+}
+
+/**
+ * One drawing per line colour, each in exactly the same place and size as the
+ * original, so each colour can be given its own pen.
+ */
+export function splitByColour(item: PageItem): PageItem[] {
+  const colours = strokeColours(item);
+  if (colours.length < 2) return [item];
+  return colours.map((colour, i) => ({
+    ...item,
+    id: `${item.id}-${i + 1}`,
+    name: `${item.name} · ${colour}`,
+    paths: item.paths.filter((p) => (p.stroke || "none") === colour),
+    // Keep the original bounds: the parts stay exactly where they were.
+    fillOnly: false,
+    svgText: undefined,
+  }));
 }
 
 /** Bounding box of everything that will be drawn, machine mm, clipped to the drawable area. */
@@ -432,6 +481,10 @@ export type PageAction =
   | { type: "remove"; id: string }
   /** Swap one item for another in the same place in the list (e.g. SVG -> its trace). */
   | { type: "replace"; id: string; item: PageItem }
+  /** Swap one item for several, in its place in the list (e.g. one per colour). */
+  | { type: "split"; id: string; items: PageItem[] }
+  /** Give an item another pen. */
+  | { type: "pen"; id: string; penId: string }
   /** Set, change or (null) remove an item's hatch fill. */
   | { type: "fill"; id: string; fill: Partial<FillInfo> | null }
   /** Text settings (panel) and laid-out strokes (usePenText). */
@@ -461,6 +514,18 @@ export function pageReducer(page: Page, action: PageAction): Page {
       return {
         items: page.items.map((it) => (it.id === action.id ? action.item : it)),
         selectedId: page.selectedId === action.id ? action.item.id : page.selectedId,
+      };
+    case "split": {
+      if (action.items.length === 0) return page;
+      return {
+        items: page.items.flatMap((it) => (it.id === action.id ? action.items : [it])),
+        selectedId: page.selectedId === action.id ? action.items[0].id : page.selectedId,
+      };
+    }
+    case "pen":
+      return {
+        ...page,
+        items: page.items.map((it) => (it.id === action.id ? { ...it, penId: action.penId } : it)),
       };
     case "fill":
       return {
