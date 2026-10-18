@@ -43,18 +43,20 @@ export function replan(inPaths: Path[], planOptions: PlanOptions): Plan {
     paths = scaleToPaper(paths, planOptions.paperSize, planOptions.marginMm);
   } else {
     paths = paths.map((ps) => ps.map((p) => vmul(p, mmPerSvgUnit)));
-    if (planOptions.cropToMargins) {
-      paths = cropToMargins(paths, planOptions.paperSize, planOptions.marginMm);
-    }
   }
 
   // Rescaling loses the stroke info, so refer back to the original paths to
   // filter based on the stroke. Rescaling doesn't change the number or order
-  // of the paths.
+  // of the paths. (PenPilot: filter *before* cropping -- cropping splits and
+  // drops lines, after which these indices no longer line up with inPaths.)
   if (planOptions.layerMode === "group") {
     paths = paths.filter((_path, i) => planOptions.selectedGroupLayers.has(inPaths[i].groupId));
   } else if (planOptions.layerMode === "stroke") {
     paths = paths.filter((_path, i) => planOptions.selectedStrokeLayers.has(inPaths[i].stroke));
+  }
+
+  if (!planOptions.fitPage && planOptions.cropToMargins) {
+    paths = cropToMargins(paths, planOptions.paperSize, planOptions.marginMm);
   }
 
   if (planOptions.pointJoinRadius > 0) {

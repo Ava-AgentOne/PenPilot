@@ -2,23 +2,11 @@
  * Front-end for plotter app.
  */
 
-import interpolator from "color-interpolate";
-import colormap from "colormap";
 import { flattenSVG, type Path } from "flatten-svg";
-import React, {
-  type ChangeEvent,
-  Fragment,
-  useContext,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useReducer,
-  useRef,
-  useState,
-} from "react";
+import React, { type ChangeEvent, Fragment, useContext, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { PaperSize } from "./paper-size.js";
-import { Device, defaultPlanOptions, Plan, type PlanOptions, type TransferredMotion, XYMotion } from "./planning.js";
+import { Device, defaultPlanOptions, Plan, type PlanOptions, type TransferredMotion } from "./planning.js";
 import useComponentSize from "./useComponentSize.js";
 
 import { formatDuration } from "./util.js";
@@ -32,8 +20,21 @@ import { type BaseDriver, type DeviceInfo, SaxiDriver, WebSerialDriver } from ".
 import type { Hardware } from "./ebb.js";
 import pathJoinRadiusIcon from "./icons/path-joining radius.svg";
 import pointJoinRadiusIcon from "./icons/point-joining radius.svg";
-import rotateDrawingIcon from "./icons/rotate-drawing.svg";
 import { desktop } from "./penpilot/desktop.js";
+import { framePlan } from "./penpilot/frame.js";
+import { loadPaperSizes, type SavedPaperSize, sameSize, savePaperSizes } from "./penpilot/paper-sizes.js";
+import {
+  choosePlacement,
+  drawableArea,
+  drawableOnPage,
+  drawingBoxOnMachine,
+  emptyPage,
+  machineReach,
+  newItem,
+  pageReducer,
+  plannerPaths,
+} from "./penpilot/page.js";
+import { DrawingsPanel, OrientationNotes, PageCanvas } from "./penpilot/page-editor.js";
 import { PlotterCheck } from "./penpilot/plotter-check.js";
 
 const defaultVisualizationOptions = {
@@ -79,6 +80,7 @@ type Action =
   | { type: "SET_PAUSED"; value: boolean }
   | { type: "SET_PROGRESS"; motionIdx: number | null }
   | { type: "SET_CONNECTED"; connected: boolean }
+  | { type: "CLEAR_PATHS" }
   | {
       type: "SET_PATHS";
       paths: State["paths"];
@@ -121,6 +123,8 @@ function reducer(state: State, action: Action): State {
     }
     case "SET_PROGRESS":
       return { ...state, progress: action.motionIdx };
+    case "CLEAR_PATHS":
+      return { ...state, paths: null, groupLayers: [], strokeLayers: [] };
     case "SET_CONNECTED":
       return { ...state, connected: action.connected };
     default:
@@ -190,8 +194,15 @@ const usePlan = (paths: Path[] | null, planOptions: PlanOptions) => {
       setIsPlanning(false);
     };
     worker.addEventListener("message", listener);
+    // PenPilot: a planner crash used to leave "Replanning..." on screen forever.
+    const onError = (e: ErrorEvent) => {
+      console.error("Planner failed:", e.message);
+      setIsPlanning(false);
+    };
+    worker.addEventListener("error", onError);
     return () => {
       worker.removeEventListener("message", listener);
+      worker.removeEventListener("error", onError);
       worker.terminate();
       setIsPlanning(false);
     };
@@ -389,40 +400,27 @@ function OriginOptions({ state }: { state: State }) {
   );
 }
 
-function SwapPaperSizesButton({ onClick }: { onClick: () => void }) {
-  const handleKeyDown = (event: React.KeyboardEvent<SVGSVGElement>) => {
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault(); // Prevent scrolling with spacebar
-      onClick();
-    }
-  };
-  return (
-    <svg
-      className="paper-sizes__swap"
-      xmlns="http://www.w3.org/2000/svg"
-      width="14.05"
-      height="11.46"
-      viewBox="0 0 14.05 11.46"
-      onKeyDown={handleKeyDown}
-      // biome-ignore lint/a11y/noNoninteractiveTabindex: no need for a div wrapper
-      tabIndex={0}
-      onClick={onClick}
-    >
-      <title>swap width and height</title>
-      <g>
-        <polygon points="14.05 3.04 8.79 0 8.79 1.78 1.38 1.78 1.38 4.29 8.79 4.29 8.79 6.08 14.05 3.04" />
-        <polygon points="0 8.43 5.26 11.46 5.26 9.68 12.67 9.68 12.67 7.17 5.26 7.17 5.26 5.39 0 8.43" />
-      </g>
-    </svg>
-  );
-}
+const MY_SIZE = "★ "; // marks the user's saved sizes in the paper list
 
 function PaperConfig({ state }: { state: State }) {
   const dispatch = useContext(DispatchContext);
   const landscape = state.planOptions.paperSize.isLandscape;
+  // PenPilot: the user's own named sizes, e.g. "Card 10x15".
+  const [mySizes, setMySizes] = useState<SavedPaperSize[]>(loadPaperSizes);
+  const [newName, setNewName] = useState("");
+  const updateMySizes = (list: SavedPaperSize[]) => {
+    setMySizes(list);
+    savePaperSizes(list);
+  };
   function setPaperSize(e: ChangeEvent) {
     const name = (e.target as HTMLInputElement).value;
-    if (name !== "Custom") {
+    if (name.startsWith(MY_SIZE)) {
+      const mine = mySizes.find((m) => m.name === name.slice(MY_SIZE.length));
+      if (mine) {
+        const ps = new PaperSize({ x: mine.x, y: mine.y });
+        dispatch({ type: "SET_PLAN_OPTION", value: { paperSize: landscape ? ps.landscape : ps.portrait } });
+      }
+    } else if (name !== "Custom") {
       const ps = PaperSize.standard[name][landscape ? "landscape" : "portrait"];
       dispatch({ type: "SET_PLAN_OPTION", value: { paperSize: ps } });
     }
@@ -439,14 +437,50 @@ function PaperConfig({ state }: { state: State }) {
         (ps.y === paperSize.size.x && ps.x === paperSize.size.y)
       );
     }) || "Custom";
+  const mySizeName = mySizes.find((m) => sameSize(m, paperSize.size))?.name;
+  const selectedName = paperSizeName === "Custom" && mySizeName ? `${MY_SIZE}${mySizeName}` : paperSizeName;
   return (
     <div>
-      <select value={paperSizeName} onChange={setPaperSize}>
+      <select value={selectedName} onChange={setPaperSize}>
         {Object.keys(PaperSize.standard).map((name) => (
           <option key={name}>{name}</option>
         ))}
+        {mySizes.map((m) => (
+          <option key={`mine-${m.name}`}>{`${MY_SIZE}${m.name}`}</option>
+        ))}
         <option>Custom</option>
       </select>
+      {selectedName === "Custom" && (
+        <div className="pp-save-size">
+          <input
+            type="text"
+            placeholder="Name this size, e.g. Card"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+          />
+          <button
+            type="button"
+            className="pp-save-size-button"
+            disabled={newName.trim() === ""}
+            onClick={() => {
+              const name = newName.trim();
+              updateMySizes([...mySizes.filter((m) => m.name !== name), { name, ...paperSize.size }]);
+              setNewName("");
+            }}
+          >
+            Save size
+          </button>
+        </div>
+      )}
+      {selectedName.startsWith(MY_SIZE) && (
+        <button
+          type="button"
+          className="button-link pp-forget-size"
+          onClick={() => updateMySizes(mySizes.filter((m) => m.name !== mySizeName))}
+        >
+          forget “{mySizeName}”
+        </button>
+      )}
       <div className="paper-sizes">
         <label className="paper-label">
           width (mm)
@@ -456,14 +490,6 @@ function PaperConfig({ state }: { state: State }) {
             onChange={(e) => setCustomPaperSize(Number(e.target.value), paperSize.size.y)}
           />
         </label>
-        <SwapPaperSizesButton
-          onClick={() => {
-            dispatch({
-              type: "SET_PLAN_OPTION",
-              value: { paperSize: paperSize.isLandscape ? paperSize.portrait : paperSize.landscape },
-            });
-          }}
-        />
         <label className="paper-label">
           height (mm)
           <input
@@ -471,32 +497,6 @@ function PaperConfig({ state }: { state: State }) {
             value={paperSize.size.y}
             onChange={(e) => setCustomPaperSize(paperSize.size.x, Number(e.target.value))}
           />
-        </label>
-      </div>
-      <div>
-        <label>
-          rotate drawing (degrees)
-          <div className="horizontal-labels">
-            <img src={rotateDrawingIcon} alt="rotate drawing (degrees)" />
-            <input
-              type="number"
-              min="-90"
-              step="90"
-              max="360"
-              placeholder="0"
-              value={state.planOptions.rotateDrawing}
-              onInput={(e) => {
-                const value = (e.target as HTMLInputElement).value;
-                if (Number(value) < 0) {
-                  (e.target as HTMLInputElement).value = "270";
-                }
-                if (Number(value) > 270) {
-                  (e.target as HTMLInputElement).value = "0";
-                }
-              }}
-              onChange={(e) => dispatch({ type: "SET_PLAN_OPTION", value: { rotateDrawing: Number(e.target.value) } })}
-            />
-          </div>
         </label>
       </div>
       <label>
@@ -572,142 +572,6 @@ function TimeLeft({
       <div>
         <strong>{formatDuration(duration - currentMotionTimeSpent)}</strong>
       </div>
-    </div>
-  );
-}
-
-function PlanPreview({
-  state,
-  previewSize,
-  plan,
-}: {
-  state: State;
-  previewSize: { width: number; height: number };
-  plan: Plan | null;
-}) {
-  const ps = state.planOptions.paperSize;
-  const device = Device(state.planOptions.hardware);
-  const strokeWidth = state.visualizationOptions.penStrokeWidth * device.stepsPerMm;
-  const colorPathsByStrokeOrder = state.visualizationOptions.colorPathsByStrokeOrder;
-  const memoizedPlanPreview = useMemo(() => {
-    if (plan) {
-      const palette = colorPathsByStrokeOrder
-        ? interpolator(colormap({ colormap: "spring" }))
-        : () => "rgba(0, 0, 0, 0.8)";
-      const lines = plan.motions
-        .filter((m) => m instanceof XYMotion)
-        .map((m) => (m as XYMotion).points()) // Each XYMotion's block start points plus its final end point
-        .filter((m) => m.length);
-      return (
-        <g transform={`scale(${1 / device.stepsPerMm})`}>
-          <title>Pen home</title>
-          <text x={lines[0][0].x} y={lines[0][0].y} fontSize="40" textAnchor="middle" dominantBaseline="middle">
-            ꚛ
-          </text>
-          {lines.map((line, i) => (
-            <path
-              // biome-ignore lint/suspicious/noArrayIndexKey: the paths are not changed elsewhere
-              key={i}
-              d={line.reduce((m, { x, y }, j) => `${m}${j === 0 ? "M" : "L"}${x} ${y}`, "")}
-              style={
-                i % 2 === 0
-                  ? { stroke: "rgba(0, 0, 0, 0.3)", strokeWidth: 0.5 }
-                  : { stroke: palette(1 - i / lines.length), strokeWidth }
-              }
-            />
-          ))}
-        </g>
-      );
-    }
-    return null;
-  }, [plan, strokeWidth, colorPathsByStrokeOrder, device.stepsPerMm]);
-
-  // w/h of svg.
-  // first try scaling so that h = area.h. if w < area.w, then ok.
-  // otherwise, scale so that w = area.w.
-  const { width, height } =
-    (ps.size.x / ps.size.y) * previewSize.height <= previewSize.width
-      ? { width: (ps.size.x / ps.size.y) * previewSize.height, height: previewSize.height }
-      : { height: (ps.size.y / ps.size.x) * previewSize.width, width: previewSize.width };
-
-  const [microprogress, setMicroprogress] = useState(0);
-  useLayoutEffect(() => {
-    let rafHandle: number;
-    let cancelled = false;
-    if (state.progress !== null) {
-      const startingTime = Date.now();
-      const updateProgress = () => {
-        if (cancelled) {
-          return;
-        }
-        setMicroprogress(Date.now() - startingTime);
-        rafHandle = requestAnimationFrame(updateProgress);
-      };
-      updateProgress();
-    }
-    return () => {
-      cancelled = true;
-      if (rafHandle !== null) {
-        cancelAnimationFrame(rafHandle);
-      }
-      setMicroprogress(0);
-    };
-  }, [state.progress]);
-
-  let progressIndicator = <></>;
-  if (state.progress !== null && plan !== null) {
-    const motion = plan.motion(state.progress);
-    const pos =
-      motion instanceof XYMotion
-        ? motion.instant(Math.min(microprogress / 1000, motion.duration())).p
-        : (plan.motion(state.progress - 1) as XYMotion).p2;
-    const posXMm = pos.x / device.stepsPerMm;
-    const posYMm = pos.y / device.stepsPerMm;
-    progressIndicator = (
-      <svg
-        width={width * 2}
-        height={height * 2}
-        viewBox={`${-width} ${-height} ${width * 2} ${height * 2}`}
-        style={{
-          transform:
-            "translateZ(0.001px) " +
-            `translate(${-width}px, ${-height}px) ` +
-            `translate(${(posXMm / ps.size.x) * 50}%,${(posYMm / ps.size.y) * 50}%)`,
-        }}
-      >
-        <title>Progress percentage bar</title>
-        <g>
-          <path
-            d={`M-${width} 0l${width * 2} 0M0 -${height}l0 ${height * 2}`}
-            style={{ stroke: "rgba(222, 114, 114, 0.6)", strokeWidth: 1 }}
-          />
-          <path d="M-10 0l20 0M0 -10l0 20" style={{ stroke: "rgba(222, 114, 114, 1)", strokeWidth: 2 }} />
-        </g>
-      </svg>
-    );
-  }
-  const margins = (
-    <g>
-      <rect
-        x={state.planOptions.marginMm}
-        y={state.planOptions.marginMm}
-        width={ps.size.x - state.planOptions.marginMm * 2}
-        height={ps.size.y - state.planOptions.marginMm * 2}
-        fill="none"
-        stroke="black"
-        strokeWidth="0.1"
-        strokeDasharray="1,1"
-      />
-    </g>
-  );
-  return (
-    <div className="preview">
-      <svg width={width} height={height} viewBox={`0 0 ${ps.size.x} ${ps.size.y}`}>
-        <title>Plot preview</title>
-        {memoizedPlanPreview}
-        {margins}
-      </svg>
-      {progressIndicator}
     </div>
   );
 }
@@ -860,24 +724,6 @@ function PlanConfig({ state }: { state: State }) {
           />
           layer by group
         </label>
-        <label className="flex-checkbox" title="Re-scale and position the image to fit on the page">
-          <input
-            type="checkbox"
-            checked={state.planOptions.fitPage}
-            onChange={(e) => dispatch({ type: "SET_PLAN_OPTION", value: { fitPage: !!e.target.checked } })}
-          />
-          fit page
-        </label>
-        {!state.planOptions.fitPage ? (
-          <label className="flex-checkbox" title="Remove lines that fall outside the margins">
-            <input
-              type="checkbox"
-              checked={state.planOptions.cropToMargins}
-              onChange={(e) => dispatch({ type: "SET_PLAN_OPTION", value: { cropToMargins: !!e.target.checked } })}
-            />
-            crop to margins
-          </label>
-        ) : null}
       </form>
       <div className="horizontal-labels">
         <label title="point-joining radius (mm)">
@@ -1075,8 +921,68 @@ function Root() {
   }, [isDriverConnected]);
 
   const [state, dispatch] = useReducer(reducer, initialState);
-  const { isPlanning, plan, setPlan } = usePlan(state.paths, state.planOptions);
+
+  // PenPilot: the page (several drawings), and how it sits in the plotter.
+  const [page, pageDispatch] = useReducer(pageReducer, emptyPage);
+  const pageSize = state.planOptions.paperSize.size;
+  const { marginMm, hardware } = state.planOptions;
+  const layout = useMemo(() => {
+    const reach = machineReach(hardware);
+    const placement = choosePlacement(pageSize, reach);
+    const drawable = drawableArea(placement, pageSize, reach);
+    return { reach, placement, drawable, drawableOnPage: drawableOnPage(placement, pageSize, drawable) };
+  }, [pageSize, hardware]);
+  // The planner gets lines already placed in machine coordinates; it only crops
+  // them to the area the pen can actually draw (the sheet, within the reach).
+  const plannerOptions = useMemo(
+    () => ({
+      ...state.planOptions,
+      paperSize: new PaperSize(layout.drawable),
+      marginMm: 0,
+      fitPage: false,
+      cropToMargins: true,
+      rotateDrawing: 0,
+    }),
+    [state.planOptions, layout.drawable],
+  );
+  const { isPlanning, plan, setPlan } = usePlan(state.paths, plannerOptions);
   const [isLoadingFile, setIsLoadingFile] = useState(false);
+
+  // Replan when drawings change, but not when one is merely selected.
+  const pageItems = page.items;
+  // biome-ignore lint/correctness/useExhaustiveDependencies(setPlan): React setters are stable
+  useEffect(() => {
+    if (pageItems.length === 0) {
+      dispatch({ type: "CLEAR_PATHS" });
+      setPlan(null);
+    } else {
+      dispatch(setPaths(plannerPaths({ items: pageItems, selectedId: null }, layout.placement, pageSize)));
+    }
+  }, [pageItems, layout.placement, pageSize]);
+
+  // Frame: trace the drawing's outline with the pen up (see penpilot/frame.ts).
+  const [framing, setFraming] = useState(false);
+  const framingRef = useRef(false);
+  const [frameLoop, setFrameLoop] = useState(false);
+  const frameLoopRef = useRef(false);
+  frameLoopRef.current = frameLoop;
+  const frameBox = useMemo(
+    () => drawingBoxOnMachine(page, layout.placement, pageSize, layout.drawable),
+    [page, layout, pageSize],
+  );
+  const startFrame = () => {
+    if (!driver || !frameBox) return;
+    framingRef.current = true;
+    setFraming(true);
+    driver.plot(framePlan(frameBox, state.planOptions));
+  };
+  const startFrameRef = useRef(startFrame);
+  startFrameRef.current = startFrame;
+  const stopFrame = () => {
+    frameLoopRef.current = false;
+    setFrameLoop(false);
+    driver?.cancel();
+  };
 
   useEffect(() => {
     window.localStorage.setItem("planOptions", JSON.stringify(state.planOptions));
@@ -1086,9 +992,21 @@ function Root() {
   useEffect(() => {
     if (driver === null) return;
     driver.onprogress = (motionIdx: number) => {
-      dispatch({ type: "SET_PROGRESS", motionIdx });
+      if (!framingRef.current) dispatch({ type: "SET_PROGRESS", motionIdx });
     };
-    driver.oncancelled = driver.onfinished = () => {
+    driver.oncancelled = () => {
+      framingRef.current = false;
+      setFraming(false);
+      dispatch({ type: "SET_PROGRESS", motionIdx: null });
+    };
+    driver.onfinished = () => {
+      if (framingRef.current) {
+        framingRef.current = false;
+        setFraming(false);
+        // "Keep going round": start the next lap once this one has finished.
+        if (frameLoopRef.current) setTimeout(() => startFrameRef.current(), 0);
+        return;
+      }
       dispatch({ type: "SET_PROGRESS", motionIdx: null });
     };
     driver.ondevinfo = (devInfo: DeviceInfo) => {
@@ -1132,11 +1050,15 @@ function Root() {
         setFileMessage(`“${name}” has no lines for the pen to draw. It may contain only a picture.`);
         return;
       }
+      const item = newItem(name, paths, pageSize, marginMm);
+      if (!item) {
+        setFileMessage(`“${name}” has no lines for the pen to draw. It may contain only a picture.`);
+        return;
+      }
       setFileMessage(null);
-      setPlan(null);
-      dispatch(setPaths(paths));
+      pageDispatch({ type: "add", items: [item] });
     },
-    [setPlan],
+    [pageSize, marginMm],
   );
 
   const handleFile = React.useCallback(
@@ -1171,8 +1093,7 @@ function Root() {
     const ondrop = (e: DragEvent) => {
       e.preventDefault();
       document.body.classList.remove("dragover");
-      const file = e.dataTransfer?.items[0]?.getAsFile();
-      if (file) handleFile(file);
+      for (const file of Array.from(e.dataTransfer?.files ?? [])) handleFile(file);
     };
     const ondragover = (e: DragEvent) => {
       e.preventDefault();
@@ -1206,7 +1127,11 @@ function Root() {
 
   const previewArea = useRef(null);
   const previewSize = useComponentSize(previewArea);
-  const showDragTarget = !plan && !isLoadingFile && !isPlanning;
+  const showDragTarget = page.items.length === 0 && !isLoadingFile;
+  const locked = state.progress !== null || framing;
+  const addFiles = (files: File[]) => {
+    for (const f of files) handleFile(f);
+  };
 
   return (
     <DispatchContext.Provider value={dispatch}>
@@ -1252,7 +1177,34 @@ function Root() {
           </div>
           <div className="section-header">paper</div>
           <div className="section-body">
+            <OrientationNotes
+              isLandscape={state.planOptions.paperSize.isLandscape}
+              onOrientation={(landscape) =>
+                dispatch({
+                  type: "SET_PLAN_OPTION",
+                  value: {
+                    paperSize: landscape ? state.planOptions.paperSize.landscape : state.planOptions.paperSize.portrait,
+                  },
+                })
+              }
+              placement={layout.placement}
+              pageSize={pageSize}
+              reach={layout.reach}
+              locked={locked}
+            />
             <PaperConfig state={state} />
+          </div>
+          <div className="section-header">drawings</div>
+          <div className="section-body">
+            <DrawingsPanel
+              page={page}
+              pageDispatch={pageDispatch}
+              pageSize={pageSize}
+              marginMm={marginMm}
+              drawable={layout.drawableOnPage}
+              locked={locked}
+              onAddFiles={addFiles}
+            />
             <LayerSelector state={state} />
           </div>
           <details>
@@ -1268,6 +1220,20 @@ function Root() {
             <div className="section-header">plot</div>
             <div className="section-body section-body__plot">
               <PlanStatistics plan={plan} />
+              <div className="pp-frame">
+                <button
+                  type="button"
+                  disabled={framing ? false : !driver?.connected || !frameBox || state.progress !== null}
+                  onClick={framing ? stopFrame : startFrame}
+                  title="Move the lifted pen around the area the drawing will cover, to line up the paper"
+                >
+                  {framing ? "Stop frame" : "Frame"}
+                </button>
+                <label className="pp-checkbox pp-frame-loop" title="Keep going round until you press Stop frame">
+                  <input type="checkbox" checked={frameLoop} onChange={(e) => setFrameLoop(e.target.checked)} />
+                  keep going round
+                </label>
+              </div>
               <TimeLeft
                 plan={plan}
                 progress={state.progress}
@@ -1279,10 +1245,18 @@ function Root() {
           </div>
         </div>
         <div className="preview-area" ref={previewArea}>
-          <PlanPreview
-            state={state}
-            previewSize={{ width: Math.max(0, previewSize.width - 40), height: Math.max(0, previewSize.height - 40) }}
+          <PageCanvas
+            page={page}
+            pageDispatch={pageDispatch}
+            pageSize={pageSize}
+            marginMm={marginMm}
+            placement={layout.placement}
+            drawable={layout.drawableOnPage}
             plan={plan}
+            stepsPerMm={Device(hardware).stepsPerMm}
+            progress={framing ? null : state.progress}
+            locked={locked}
+            previewSize={{ width: Math.max(0, previewSize.width - 40), height: Math.max(0, previewSize.height - 40) }}
           />
           <PlanLoader isPlanning={isPlanning} isLoadingFile={isLoadingFile} />
           {fileMessage && (
@@ -1305,8 +1279,8 @@ function DragTarget({ handleFile }: { handleFile: (file: File) => void }) {
 
   const handleFileInputChange = React.useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (file) handleFile(file);
+      for (const file of Array.from(e.target.files ?? [])) handleFile(file);
+      e.target.value = "";
     },
     [handleFile],
   );
@@ -1322,7 +1296,8 @@ function DragTarget({ handleFile }: { handleFile: (file: File) => void }) {
         <input
           ref={fileInputRef}
           type="file"
-          accept=".svg"
+          accept=".svg,image/svg+xml"
+          multiple
           style={{ display: "none" }}
           onChange={handleFileInputChange}
         />

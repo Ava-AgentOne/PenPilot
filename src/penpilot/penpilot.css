@@ -100,10 +100,10 @@
   text-align: center;
 }
 
-/* saxi's fixed "plot" block at the bottom of the panel is ~270px tall; the
+/* saxi's fixed "plot" block at the bottom of the panel (~330px with Frame); the
    scroll spacer must be at least that, or the last settings hide behind it. */
 .spacer {
-  height: 290px;
+  height: 350px;
 }
 .pp-status + button {
   width: 100%;
@@ -163,3 +163,167 @@
   font-size: 18px;
   line-height: 1;
 }
+
+/* ---- Page editor ---------------------------------------------------------- */
+
+.pp-page svg {
+  display: block;
+  touch-action: none;
+}
+.pp-page path.pp-item-lines {
+  fill: none;
+  stroke: #222;
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.pp-page path.pp-item-lines--dim { stroke: #c8c8c8; }
+.pp-page path.pp-travel {
+  fill: none;
+  stroke: rgba(0, 0, 0, 0.22);
+  stroke-width: 0.6px;
+  vector-effect: non-scaling-stroke;
+}
+.pp-page path.pp-done {
+  fill: none;
+  stroke: var(--teal-dark);
+  stroke-width: 1.6px;
+  vector-effect: non-scaling-stroke;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.pp-page rect.pp-margin {
+  fill: none;
+  stroke: rgba(0, 0, 0, 0.35);
+  stroke-width: 1px;
+  stroke-dasharray: 4 3;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+.pp-page rect.pp-hit {
+  fill: transparent;
+  stroke: transparent;
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+  cursor: move;
+}
+.pp-page rect.pp-hit:hover { stroke: rgba(63, 153, 145, 0.5); stroke-dasharray: 4 3; }
+.pp-page rect.pp-hit--selected { stroke: var(--teal-dark); stroke-dasharray: 5 3; }
+.pp-page rect.pp-hit--overflow { stroke: var(--red); stroke-dasharray: 5 3; }
+.pp-page circle.pp-handle {
+  fill: white;
+  stroke: var(--teal-dark);
+  stroke-width: 1.5px;
+  vector-effect: non-scaling-stroke;
+  cursor: nwse-resize;
+}
+.pp-page .pp-pen circle {
+  fill: rgba(222, 114, 114, 0.25);
+  stroke: var(--red);
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+.pp-page .pp-pen path {
+  fill: none;
+  stroke: var(--red);
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+
+/* ---- Drawings panel -------------------------------------------------------- */
+
+.pp-item-list {
+  list-style: none;
+  margin: 0 0 0.5rem;
+  padding: 0;
+}
+.pp-item-list li { margin: 0.15rem 0; }
+.pp-item-list button.pp-item-name {
+  width: 100%;
+  overflow: hidden;
+  padding: 0.2rem 0.3rem;
+  font-size: 12px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pp-item-list button.pp-item-name--selected {
+  background-color: var(--teal-light);
+  color: var(--teal-dark);
+  font-weight: 700;
+}
+.pp-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 10px;
+}
+.pp-field input[type=number] { margin-bottom: 0.3rem; }
+.pp-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 10px;
+}
+.pp-buttons button { padding: 0.3rem; font-size: 12px; }
+.pp-warning,
+.pp-note,
+.pp-hint {
+  margin: 0.25rem 0 0.75rem;
+  font-size: 11px;
+  line-height: 1.4;
+}
+.pp-warning { color: #b04848; }
+.pp-note { color: var(--purple-dark); }
+.pp-hint { color: var(--purple); opacity: 0.75; }
+
+/* ---- Frame ------------------------------------------------------------------ */
+
+.pp-frame { margin-bottom: 0.25rem; }
+.pp-frame button { margin-bottom: 0.25rem; }
+.pp-checkbox.pp-frame-loop { margin: 0 0 0.25rem; font-size: 11px; }
+
+/* ---- Paper orientation ------------------------------------------------------ */
+
+.pp-segmented {
+  display: flex;
+  margin: 0 0 0.5rem;
+  padding: 0;
+  border: none;
+}
+.pp-segmented button { margin-bottom: 0; }
+.pp-segmented button + button { border-left: none; }
+.pp-segmented button.pp-on {
+  background-color: var(--purple);
+  color: white;
+}
+.pp-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.pp-orientation,
+.pp-drawings,
+.pp-selected {
+  margin-bottom: 0.25rem;
+}
+
+/* saxi styles every <path> (stroke black, fill transparent); override for the stripes. */
+.pp-page path.pp-unreachable {
+  fill: url(#pp-unreachable);
+  fill-rule: evenodd;
+  stroke: none;
+  pointer-events: none;
+}
+
+.pp-save-size {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  column-gap: 6px;
+}
+.pp-save-size input[type=text] { margin-bottom: 0.5rem; font-size: 12px; }
+.pp-save-size-button { width: auto; padding: 0.3rem 0.5rem; font-size: 12px; }
+button.button-link.pp-forget-size { margin: -0.25rem 0 0.5rem; }

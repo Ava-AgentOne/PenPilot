@@ -10,7 +10,19 @@ is in [`PLAN.md`](PLAN.md).
 
 
 
-## What works now (build step 1)
+## What works now (build steps 1–2)
+
+**Page editor (step 2):**
+- **Several drawings on one page.** Add SVGs with **Add drawing…** or drag them in (several at once).
+- **Move** by dragging and **resize** with the corner dot (proportions kept). Also: exact x / y / width / height in mm, **Turn 90°**, **Centre**, **Fit page**, arrow keys to nudge (Shift = 10 mm), Delete to remove. Drawings snap to the centre of the page.
+- **Portrait / Landscape** switch. When the page doesn't fit the V3 as shown (A4 portrait is 297 mm tall, the V3 reaches 218 mm), PenPilot turns the plot and tells you to put the sheet in sideways, top of the page on the left.
+- **Reach warning:** paper bigger than 300 × 218 mm gets a striped "can't reach" area. Drawings sticking into it, or off the sheet, are flagged and cropped.
+- **Frame:** with the pen lifted, the plotter traces the rectangle the drawings cover, once or round and round until you press Stop frame.
+- **While plotting,** lines already drawn turn teal on screen and a red cross follows the pen.
+- **Save your own paper sizes** (Custom → name → Save size). They appear as ★ in the paper list.
+- Each drawing is a layer, so you can choose which drawings to plot.
+
+**Foundation (step 1):**
 
 - **One install** on Mac (`.dmg`) or Windows (installer, or a portable `.exe` that runs without installing).
 - **Plotter check** when the app opens, and again whenever the plotter is plugged in or unplugged. In plain words it tells you if:
