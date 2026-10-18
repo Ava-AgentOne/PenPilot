@@ -13,6 +13,14 @@
 
 import type { Path } from "flatten-svg";
 import type { Vec2 } from "../vec.js";
+import {
+  DEFAULT_DETAIL,
+  DEFAULT_STYLE,
+  type PhotoConfig,
+  type PhotoControl,
+  type PhotoInfo,
+  rasterSize,
+} from "./photo.js";
 
 export const MM_PER_SOURCE_UNIT = 25.4 / 96;
 
@@ -39,6 +47,8 @@ export interface PageItem {
   scale: number;
   /** Clockwise quarter turns. */
   rotation: Rotation;
+  /** Set for photos: the picture and the style that turns it into `paths`. */
+  photo?: PhotoInfo;
 }
 
 export interface Page {
@@ -287,6 +297,58 @@ export function newItem(name: string, paths: Path[], pageSize: Size, marginMm: n
   return fitsNaturally ? centreItem(item, pageSize) : fitItem(item, pageSize, marginMm);
 }
 
+/**
+ * A photo: placed to fit inside the margins; its lines arrive later from the
+ * style (see usePhotoRenderer). Its bounds are the whole picture, so redrawing
+ * with other settings never moves or resizes it.
+ */
+export function newPhotoItem(
+  name: string,
+  bitmap: ImageBitmap,
+  previewUrl: string,
+  pageSize: Size,
+  marginMm: number,
+): PageItem {
+  const { width, height } = rasterSize(bitmap, DEFAULT_DETAIL);
+  const item: PageItem = {
+    id: `item-${Date.now()}-${nextId++}`,
+    name,
+    paths: [],
+    bounds: { minX: 0, minY: 0, maxX: width, maxY: height },
+    x: 0,
+    y: 0,
+    scale: 1,
+    rotation: 0,
+    photo: {
+      bitmap,
+      previewUrl,
+      style: DEFAULT_STYLE,
+      detail: DEFAULT_DETAIL,
+      width,
+      height,
+      controls: [],
+      config: {},
+      status: "working",
+      message: "Drawing…",
+    },
+  };
+  return fitItem(item, pageSize, marginMm);
+}
+
+/** Change a photo's detail, keeping its size on the page (and its current lines, rescaled). */
+export function setPhotoDetail(item: PageItem, detail: number): PageItem {
+  if (!item.photo) return item;
+  const { width, height } = rasterSize(item.photo.bitmap, detail);
+  const k = width / item.photo.width;
+  return {
+    ...item,
+    scale: item.scale / k,
+    bounds: { minX: 0, minY: 0, maxX: width, maxY: height },
+    paths: item.paths.map((p) => ({ ...p, points: p.points.map((q) => ({ x: q.x * k, y: q.y * k })) })),
+    photo: { ...item.photo, detail, width, height },
+  };
+}
+
 // ---- State -----------------------------------------------------------------------
 
 export type PageAction =
@@ -295,6 +357,11 @@ export type PageAction =
   /** Move by an offset, based on the current state (safe for key repeat). */
   | { type: "nudge"; id: string; dx: number; dy: number }
   | { type: "remove"; id: string }
+  /** Photo results and settings (see usePhotoRenderer / the photo panel). */
+  | { type: "photoResult"; id: string; paths: Path[] }
+  | { type: "photoStatus"; id: string; status: PhotoInfo["status"]; message: string }
+  | { type: "photoMeta"; id: string; controls: PhotoControl[]; config: PhotoConfig }
+  | { type: "photoSettings"; id: string; style?: string; config?: PhotoConfig }
   | { type: "select"; id: string | null }
   | { type: "clear" };
 
@@ -310,6 +377,35 @@ export function pageReducer(page: Page, action: PageAction): Page {
         ...page,
         items: page.items.map((it) => (it.id === action.id ? { ...it, x: it.x + action.dx, y: it.y + action.dy } : it)),
       };
+    case "photoResult":
+      return withPhoto(page, action.id, (it, photo) => ({
+        ...it,
+        paths: action.paths,
+        photo: { ...photo, status: photo.status === "error" ? "error" : "done", message: "" },
+      }));
+    case "photoStatus":
+      return withPhoto(page, action.id, (it, photo) => ({
+        ...it,
+        photo: { ...photo, status: action.status, message: action.message },
+      }));
+    case "photoMeta":
+      return withPhoto(page, action.id, (it, photo) => ({
+        ...it,
+        photo: { ...photo, controls: action.controls, config: action.config },
+      }));
+    case "photoSettings":
+      return withPhoto(page, action.id, (it, photo) => ({
+        ...it,
+        photo: {
+          ...photo,
+          // A new style declares its own controls; values with the same name carry over.
+          controls: action.style && action.style !== photo.style ? [] : photo.controls,
+          style: action.style ?? photo.style,
+          config: { ...photo.config, ...action.config },
+          status: "working",
+          message: "Drawing…",
+        },
+      }));
     case "remove": {
       const items = page.items.filter((it) => it.id !== action.id);
       return { items, selectedId: page.selectedId === action.id ? null : page.selectedId };
@@ -319,4 +415,8 @@ export function pageReducer(page: Page, action: PageAction): Page {
     case "clear":
       return emptyPage;
   }
+}
+
+function withPhoto(page: Page, id: string, f: (item: PageItem, photo: PhotoInfo) => PageItem): Page {
+  return { ...page, items: page.items.map((it) => (it.id === id && it.photo ? f(it, it.photo) : it)) };
 }

@@ -327,3 +327,36 @@
 .pp-save-size input[type=text] { margin-bottom: 0.5rem; font-size: 12px; }
 .pp-save-size-button { width: auto; padding: 0.3rem 0.5rem; font-size: 12px; }
 button.button-link.pp-forget-size { margin: -0.25rem 0 0.5rem; }
+
+/* ---- Photos ------------------------------------------------------------------ */
+
+.pp-page image.pp-photo { opacity: 0.18; pointer-events: none; }
+.pp-photo-panel {
+  margin: 0.25rem 0 0.75rem;
+  padding: 0.5rem 0.6rem 0.25rem;
+  border: 1px solid var(--purple-light);
+  border-radius: 6px;
+}
+.pp-photo-panel select { margin-bottom: 0.4rem; }
+.pp-slider {
+  display: block;
+  margin-bottom: 0.35rem;
+  text-align: left;
+}
+.pp-slider-label {
+  display: flex;
+  justify-content: space-between;
+}
+.pp-slider-value { font-weight: 700; }
+.pp-slider input[type=range] {
+  width: 100%;
+  margin: 0;
+  accent-color: var(--purple);
+}
+.pp-photo-status {
+  margin: 0.25rem 0 0.4rem;
+  font-size: 11px;
+  color: var(--purple-dark);
+}
+.pp-photo-status--working { color: var(--teal-dark); font-weight: 700; }
+.pp-photo-status--error { color: #b04848; }

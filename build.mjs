@@ -1,5 +1,6 @@
 /* eslint-env node */
 
+import { cpSync } from "node:fs";
 import { htmlPlugin as html } from "@craftamap/esbuild-plugin-html";
 import { build, context } from "esbuild";
 import inlineWorker from "esbuild-plugin-inline-worker";
@@ -41,8 +42,12 @@ const buildOptions = {
   resolveExtensions: [".mjs", ".js", ".ts", ".tsx", ".svg"],
 };
 
+// PenPilot: Plotterfun's photo styles run as plain Web Workers, copied as-is.
+const copyPlotterfun = () => cpSync("vendor/plotterfun", `${buildOptions.outdir}/plotterfun`, { recursive: true });
+
 (async () => {
   try {
+    copyPlotterfun();
     if (process.env.SAXI_HOT_RELOAD) {
       const ctx = await context({
         ...buildOptions,

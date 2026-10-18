@@ -24,7 +24,9 @@ import {
   type Placement,
   rotateItem,
   type Size,
+  setPhotoDetail,
 } from "./page.js";
+import { MAX_DETAIL, MIN_DETAIL, PHOTO_STYLES, type PhotoConfig } from "./photo.js";
 
 const SNAP_MM = 2;
 const MIN_SIZE_MM = 3;
@@ -43,7 +45,15 @@ function pathData(points: Vec2[]): string {
 }
 
 /** One drawing's lines; memoised so moving another drawing doesn't redraw it. */
-const ItemLines = React.memo(function ItemLines({ item, dimmed }: { item: PageItem; dimmed: boolean }) {
+const ItemLines = React.memo(function ItemLines({
+  item,
+  dimmed,
+  showPhoto,
+}: {
+  item: PageItem;
+  dimmed: boolean;
+  showPhoto: boolean;
+}) {
   // One <path> per stroke colour, so each drawing shows in its own pen colours.
   const byColour = useMemo(() => {
     const m = new Map<string, string>();
@@ -55,6 +65,17 @@ const ItemLines = React.memo(function ItemLines({ item, dimmed }: { item: PageIt
   }, [item.paths]);
   return (
     <g transform={itemSvgTransform(item)}>
+      {item.photo && showPhoto && (
+        <image
+          className="pp-photo"
+          href={item.photo.previewUrl}
+          x={0}
+          y={0}
+          width={item.photo.width}
+          height={item.photo.height}
+          preserveAspectRatio="none"
+        />
+      )}
       {byColour.map(([colour, d]) => (
         <path
           key={colour}
@@ -256,7 +277,12 @@ export function PageCanvas({
           height={Math.max(0, pageSize.y - 2 * marginMm)}
         />
         {items.map((it) => (
-          <ItemLines key={it.id} item={it} dimmed={plotting} />
+          <ItemLines
+            key={it.id}
+            item={it}
+            dimmed={plotting}
+            showPhoto={!plotting && (it.id === page.selectedId || it.paths.length === 0)}
+          />
         ))}
         {planLines && !draft && <path className="pp-travel" d={planLines.travel} />}
         {plotting && <path className="pp-done" d={done} />}
@@ -368,7 +394,7 @@ export function DrawingsPanel({ page, pageDispatch, pageSize, marginMm, drawable
       <input
         ref={fileInput}
         type="file"
-        accept=".svg,image/svg+xml"
+        accept=".svg,image/svg+xml,image/png,image/jpeg,image/webp,image/gif,image/bmp"
         multiple
         style={{ display: "none" }}
         onChange={(e) => {
@@ -377,7 +403,7 @@ export function DrawingsPanel({ page, pageDispatch, pageSize, marginMm, drawable
         }}
       />
       <button type="button" disabled={locked} onClick={() => fileInput.current?.click()}>
-        Add drawing…
+        Add drawing or photo…
       </button>
       {page.items.length > 0 && (
         <ul className="pp-item-list">
@@ -396,6 +422,7 @@ export function DrawingsPanel({ page, pageDispatch, pageSize, marginMm, drawable
           ))}
         </ul>
       )}
+      {selected?.photo && <PhotoPanel item={selected} pageDispatch={pageDispatch} locked={locked} />}
       {selected && size && (
         <div className="pp-selected">
           <div className="pp-fields">
@@ -498,5 +525,128 @@ export function OrientationNotes({
         </div>
       )}
     </div>
+  );
+}
+
+// ---- Photo styles --------------------------------------------------------------------
+
+function PhotoPanel({
+  item,
+  pageDispatch,
+  locked,
+}: {
+  item: PageItem;
+  pageDispatch: (a: PageAction) => void;
+  locked: boolean;
+}) {
+  const photo = item.photo as NonNullable<PageItem["photo"]>;
+  const set = (config: PhotoConfig) => pageDispatch({ type: "photoSettings", id: item.id, config });
+  return (
+    <div className="pp-photo-panel">
+      <label className="pp-field">
+        style
+        <select
+          value={photo.style}
+          disabled={locked}
+          onChange={(e) => pageDispatch({ type: "photoSettings", id: item.id, style: e.target.value })}
+        >
+          {PHOTO_STYLES.map((st) => (
+            <option key={st.file} value={st.file}>
+              {st.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <SliderField
+        label="Detail (px)"
+        value={photo.detail}
+        min={MIN_DETAIL}
+        max={MAX_DETAIL}
+        step={50}
+        disabled={locked}
+        onChange={(detail) => pageDispatch({ type: "update", item: setPhotoDetail(item, detail) })}
+      />
+      {photo.controls.map((c) =>
+        c.type === "checkbox" ? (
+          <label key={c.label} className="pp-checkbox">
+            <input
+              type="checkbox"
+              disabled={locked}
+              checked={!!photo.config[c.label]}
+              onChange={(e) => set({ [c.label]: e.target.checked })}
+            />
+            {c.label}
+          </label>
+        ) : c.type === "select" ? (
+          <label key={c.label} className="pp-field">
+            {c.label}
+            <select
+              value={String(photo.config[c.label] ?? "")}
+              disabled={locked}
+              onChange={(e) => set({ [c.label]: e.target.value })}
+            >
+              {(c.options ?? []).map((o) => (
+                <option key={o}>{o}</option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          <SliderField
+            key={c.label}
+            label={c.label}
+            value={Number(photo.config[c.label] ?? c.value ?? 0)}
+            min={c.min ?? 0}
+            max={c.max ?? 100}
+            step={c.step ?? 1}
+            disabled={locked}
+            onChange={(v) => set({ [c.label]: v })}
+          />
+        ),
+      )}
+      <div className={`pp-photo-status pp-photo-status--${photo.status}`}>
+        {photo.status === "error"
+          ? `Couldn't draw this: ${photo.message}`
+          : photo.status === "working"
+            ? photo.message || "Drawing…"
+            : `${item.paths.length.toLocaleString()} pen ${item.paths.length === 1 ? "stroke" : "strokes"}`}
+      </div>
+    </div>
+  );
+}
+
+/** A slider with its value shown; reports changes as you drag. */
+function SliderField({
+  label,
+  value,
+  min,
+  max,
+  step,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  disabled: boolean;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <label className="pp-slider">
+      <span className="pp-slider-label">
+        {label}
+        <span className="pp-slider-value">{Number.isInteger(step) ? value : value.toFixed(2)}</span>
+      </span>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        disabled={disabled}
+        onChange={(e) => onChange(Number(e.target.value))}
+      />
+    </label>
   );
 }

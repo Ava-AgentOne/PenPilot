@@ -31,10 +31,13 @@ import {
   emptyPage,
   machineReach,
   newItem,
+  newPhotoItem,
   pageReducer,
   plannerPaths,
 } from "./penpilot/page.js";
 import { DrawingsPanel, OrientationNotes, PageCanvas } from "./penpilot/page-editor.js";
+import { isImageFile } from "./penpilot/photo.js";
+import { usePhotoRenderer } from "./penpilot/photo-renderer.js";
 import { PlotterCheck } from "./penpilot/plotter-check.js";
 
 const defaultVisualizationOptions = {
@@ -948,16 +951,28 @@ function Root() {
   const { isPlanning, plan, setPlan } = usePlan(state.paths, plannerOptions);
   const [isLoadingFile, setIsLoadingFile] = useState(false);
 
-  // Replan when drawings change, but not when one is merely selected.
+  // Replan when the drawings' lines or placement change -- not when one is
+  // merely selected or a photo reports progress -- once edits settle.
   const pageItems = page.items;
+  usePhotoRenderer(pageItems, pageDispatch);
+  const lastGeometry = useRef<unknown[] | null>(null);
   // biome-ignore lint/correctness/useExhaustiveDependencies(setPlan): React setters are stable
   useEffect(() => {
-    if (pageItems.length === 0) {
-      dispatch({ type: "CLEAR_PATHS" });
-      setPlan(null);
-    } else {
-      dispatch(setPaths(plannerPaths({ items: pageItems, selectedId: null }, layout.placement, pageSize)));
-    }
+    const geometry: unknown[] = [layout.placement, pageSize];
+    for (const it of pageItems) geometry.push(it.id, it.name, it.paths, it.x, it.y, it.scale, it.rotation);
+    const last = lastGeometry.current;
+    if (last && last.length === geometry.length && last.every((v, i) => v === geometry[i])) return;
+    const timer = setTimeout(() => {
+      lastGeometry.current = geometry;
+      const drawable = pageItems.filter((it) => it.paths.length > 0);
+      if (drawable.length === 0) {
+        dispatch({ type: "CLEAR_PATHS" });
+        setPlan(null);
+      } else {
+        dispatch(setPaths(plannerPaths({ items: drawable, selectedId: null }, layout.placement, pageSize)));
+      }
+    }, 300);
+    return () => clearTimeout(timer);
   }, [pageItems, layout.placement, pageSize]);
 
   // Frame: trace the drawing's outline with the pen up (see penpilot/frame.ts).
@@ -1063,11 +1078,22 @@ function Root() {
 
   const handleFile = React.useCallback(
     (file: File) => {
+      if (isImageFile(file)) {
+        // A photo: becomes pen lines through a Plotterfun style (penpilot/photo.ts).
+        setIsLoadingFile(true);
+        createImageBitmap(file)
+          .then((bitmap) => {
+            const url = URL.createObjectURL(file);
+            pageDispatch({ type: "add", items: [newPhotoItem(file.name, bitmap, url, pageSize, marginMm)] });
+            setFileMessage(null);
+          })
+          .catch(() => setFileMessage(`PenPilot couldn't open the picture “${file.name}”.`))
+          .finally(() => setIsLoadingFile(false));
+        return;
+      }
       const isSvg = file.type === "image/svg+xml" || /\.svg$/i.test(file.name);
       if (!isSvg) {
-        setFileMessage(
-          `“${file.name}” is a picture, not a drawing. For now PenPilot plots SVG drawings only. Turning photos into pen lines comes in a later build step.`,
-        );
+        setFileMessage(`PenPilot can't use “${file.name}”. Add an SVG drawing or a photo (JPG, PNG, WebP, GIF).`);
         return;
       }
       setIsLoadingFile(true);
@@ -1085,7 +1111,7 @@ function Root() {
       };
       reader.readAsText(file);
     },
-    [loadSvgText],
+    [loadSvgText, pageSize, marginMm],
   );
 
   useEffect(() => {
@@ -1288,15 +1314,15 @@ function DragTarget({ handleFile }: { handleFile: (file: File) => void }) {
   return (
     <div className="drag-target">
       <div className="drag-target-message">
-        <span>Drag SVG here or</span>
+        <span>Drag a drawing (SVG) or photo here, or</span>
         <button type="button" onClick={() => fileInputRef.current.click()}>
-          Upload SVG
+          Choose file
         </button>{" "}
         {/* the input for the system file picker can't be styled, so hide it and use this button*/}
         <input
           ref={fileInputRef}
           type="file"
-          accept=".svg,image/svg+xml"
+          accept=".svg,image/svg+xml,image/png,image/jpeg,image/webp,image/gif,image/bmp"
           multiple
           style={{ display: "none" }}
           onChange={handleFileInputChange}
