@@ -1,4 +1,8 @@
-# PenPilot
+<p align="center">
+  <img src="desktop/build/icon-win-256.png" width="128" height="128" alt="PenPilot icon: a plotter's pen carriage drawing a line">
+</p>
+
+<h1 align="center">PenPilot</h1>
 
 A standalone desktop app for the **AxiDraw V3** pen plotter on **Mac and Windows**.
 You install one thing and it works: no Inkscape, Node.js, Python or drivers to set up.
