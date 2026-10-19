@@ -817,7 +817,7 @@ function PortSelector({ driver, setDriver, hardware }: PortSelectorProps) {
             });
             setDriver(await WebSerialDriver.connect(port, hardware));
           } catch (e) {
-            alert(`Failed to connect to serial device: ${e.message}`);
+            alert(`Failed to connect to serial device: ${(e as Error).message}`);
             console.error(e);
           } finally {
             setInitializing(false);
@@ -1338,8 +1338,10 @@ function Root() {
       document.body.classList.remove("dragover");
     };
     const onpaste = (e: ClipboardEvent) => {
-      const item = e.clipboardData?.items[0];
-      if (item?.kind === "string") item.getAsString((s) => loadSvgText(s, "the pasted text"));
+      // Pasting into a text box is just typing; and only SVG text is a drawing.
+      if (editingText()) return;
+      const text = e.clipboardData?.getData("text/plain") ?? "";
+      if (/<svg[\s>]/i.test(text)) loadSvgText(text, "the pasted drawing");
     };
     document.body.addEventListener("drop", ondrop);
     document.body.addEventListener("dragover", ondragover);
@@ -1548,7 +1550,9 @@ function Root() {
       setUpdateError(null);
     });
     const stopProgress = u.onProgress((p) =>
-      setUpdateProgress(p.installing ? "installing" : { fraction: p.total ? (p.received ?? 0) / p.total : 0 }),
+      setUpdateProgress(
+        p.deferred ? "deferred" : p.installing ? "installing" : { fraction: p.total ? (p.received ?? 0) / p.total : 0 },
+      ),
     );
     return () => {
       stopAvailable();
@@ -1780,6 +1784,7 @@ function Root() {
               canTest={canMovePen && !plotting}
               onTest={startTest}
               onMotorsOff={() => driver?.limp()}
+              canMotorsOff={connected && !plotting && sideJob === null}
             />
           </Fold>
           <Fold id="paper" title="Paper" defaultOpen={false} summary={paperSummary(state.planOptions)}>
@@ -1798,7 +1803,10 @@ function Root() {
               reach={layout.reach}
               locked={locked}
             />
-            <PaperConfig state={state} />
+            {/* Locked while plotting: a new paper would replan under the running plot. */}
+            <fieldset className="pp-lock" disabled={locked}>
+              <PaperConfig state={state} />
+            </fieldset>
           </Fold>
           <Fold
             id="drawings"
@@ -1836,10 +1844,12 @@ function Root() {
               />
               Reverse pen direction
             </label>
-            <PlanConfig state={state} />
-            <OriginOptions state={state} />
-            <HardwareOptions state={state} driver={driver} />
-            <ResetToDefaultsButton />
+            <fieldset className="pp-lock" disabled={locked}>
+              <PlanConfig state={state} />
+              <OriginOptions state={state} />
+              <HardwareOptions state={state} driver={driver} />
+              <ResetToDefaultsButton />
+            </fieldset>
           </Fold>
           <div className="spacer" style={{ height: Math.max(200, plotBlockSize.height + 20) }} />
           <div className="control-panel-bottom" ref={plotBlock}>
@@ -2003,7 +2013,7 @@ function DragTarget({ handleFile }: { handleFile: (file: File) => void }) {
     <div className="drag-target">
       <div className="drag-target-message">
         <span>Drag a drawing (SVG) or photo here, or</span>
-        <button type="button" onClick={() => fileInputRef.current.click()}>
+        <button type="button" onClick={() => fileInputRef.current?.click()}>
           Choose file
         </button>{" "}
         {/* the input for the system file picker can't be styled, so hide it and use this button*/}
@@ -2071,8 +2081,8 @@ function readSvg(svgString: string): Path[] {
   container.style.left = "99999px";
   document.body.appendChild(container);
   try {
-    container.appendChild(document.importNode(svg, true));
-    return flattenSVG(container.querySelector("svg"));
+    const live = container.appendChild(document.importNode(svg, true));
+    return flattenSVG(live);
   } finally {
     container.remove();
   }

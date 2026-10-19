@@ -36,6 +36,16 @@ fileAssociations:
     role: Editor
     mimeType: application/x-penpilot
 
+# Electron's lock-down switches: the app can't be started as plain Node.js,
+# can't be given Node options or a debugger from outside, and only runs its own
+# (checked) app.asar.
+electronFuses:
+  runAsNode: false
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true
+
 extraResources:
   - from: LICENSE
     to: LICENSE-PenPilot-AGPL-3.0.txt

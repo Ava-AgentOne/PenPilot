@@ -102,11 +102,18 @@ export class WebSerialDriver extends BaseDriver {
     super();
     this.ebb = ebb;
     this._name = name;
+    // PenPilot: replies stopped (unplugged): count as disconnected straight away.
+    ebb.onConnectionLost = () => {
+      this.connected = false;
+    };
   }
 
   private handleDisconnection(): void {
     console.log("WebSerial device disconnected");
     this.connected = false;
+    // PenPilot: fail any command waiting for a reply, so a running plot stops
+    // (the UI then offers "continue from line") instead of waiting forever.
+    this.ebb.connectionLost();
   }
 
   public async close(): Promise<void> {

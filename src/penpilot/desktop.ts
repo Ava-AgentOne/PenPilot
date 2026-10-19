@@ -65,7 +65,9 @@ export interface PenPilotDesktop {
     install(): Promise<{ ok: boolean; message?: string }>;
     openPage(): Promise<void>;
     onAvailable(fn: (info: UpdateInfo) => void): () => void;
-    onProgress(fn: (p: { received?: number; total?: number; installing?: boolean }) => void): () => void;
+    onProgress(
+      fn: (p: { received?: number; total?: number; installing?: boolean; deferred?: boolean }) => void,
+    ): () => void;
   };
   /** Menu bar commands ("new", "open", "save", "save-as", "export-svg", "help", "plotter-check", ...). */
   onMenu?(fn: (command: string) => void): () => void;

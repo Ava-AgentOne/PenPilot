@@ -131,15 +131,65 @@ const num = (v: unknown, what: string): number => {
   return v;
 };
 
+/** A damaged or tampered file can't make PenPilot draw millions of points or freeze it. */
+const MAX_POINTS = 5_000_000;
+let pointsRead = 0;
+
 function readPaths(raw: unknown): Path[] {
   if (!Array.isArray(raw)) throw new ProjectError("This project file is damaged (lines).");
   return raw.map((p: SavedPath) => {
     const flat = Array.isArray(p?.p) ? p.p : [];
+    pointsRead += flat.length / 2;
+    if (pointsRead > MAX_POINTS) throw new ProjectError("This project is too large to open.");
     const points = [];
     for (let i = 0; i + 1 < flat.length; i += 2)
       points.push({ x: num(flat[i], "points"), y: num(flat[i + 1], "points") });
     return { stroke: typeof p?.s === "string" ? p.s : "", groupId: typeof p?.g === "string" ? p.g : "", points };
   });
+}
+
+// Settings read from a file are kept within what the app itself allows, so a
+// damaged file can't ask for, say, a shape kilometres wide or a fill line every
+// thousandth of a millimetre (either would freeze PenPilot).
+const clamp = (v: unknown, lo: number, hi: number, dflt: number) =>
+  typeof v === "number" && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : dflt;
+
+function readFill(raw: FillInfo): FillInfo | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const kind = (["none", "lines", "cross", "concentric"] as const).find((k) => k === raw.kind) ?? "none";
+  return {
+    kind,
+    spacingMm: clamp(raw.spacingMm, 0.1, 50, 0.5),
+    angle: clamp(raw.angle, -360, 360, 45),
+    outline: raw.outline !== false,
+  };
+}
+
+function readShape(raw: ShapeInfo): ShapeInfo | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const w = clamp(raw.w, 3, 2000, 50);
+  const h = clamp(raw.h, 3, 2000, 50);
+  return {
+    kind: raw.kind === "ellipse" ? "ellipse" : "rect",
+    w,
+    h,
+    radius: clamp(raw.radius, 0, Math.min(w, h) / 2, 0),
+    lines: Math.round(clamp(raw.lines, 1, 10, 1)),
+    gap: clamp(raw.gap, 0.1, 100, 2),
+  };
+}
+
+function readText(raw: TextInfo): TextInfo | undefined {
+  if (!raw || typeof raw !== "object" || typeof raw.text !== "string" || typeof raw.font !== "string") return undefined;
+  return {
+    text: raw.text.slice(0, 5000),
+    font: raw.font,
+    sizeMm: clamp(raw.sizeMm, 1, 500, 10),
+    letterSpacing: clamp(raw.letterSpacing, -1, 5, 0),
+    lineSpacing: clamp(raw.lineSpacing, 0.3, 5, 1),
+    align: raw.align === "centre" || raw.align === "right" ? raw.align : "left",
+    style: raw.style === "filled" ? "filled" : raw.style === "line" ? "line" : undefined,
+  };
 }
 
 async function readPhoto(raw: SavedPhoto): Promise<PageItem["photo"]> {
@@ -152,9 +202,9 @@ async function readPhoto(raw: SavedPhoto): Promise<PageItem["photo"]> {
     bitmap,
     previewUrl: URL.createObjectURL(blob),
     style: String(raw.style),
-    detail: num(raw.detail, "photo detail"),
-    width: num(raw.width, "photo size"),
-    height: num(raw.height, "photo size"),
+    detail: clamp(num(raw.detail, "photo detail"), 50, 4000, 800),
+    width: clamp(num(raw.width, "photo size"), 1, 10000, 800),
+    height: clamp(num(raw.height, "photo size"), 1, 10000, 800),
     controls: Array.isArray(raw.controls) ? raw.controls : [],
     config: raw.config && typeof raw.config === "object" ? raw.config : {},
     status: "done",
@@ -184,11 +234,10 @@ export async function projectFromText(text: string): Promise<Project> {
   if (typeof raw.version !== "number" || raw.version > VERSION) {
     throw new ProjectError("This project was saved by a newer PenPilot. Update PenPilot to open it.");
   }
-  const paper = {
-    width: num(raw.paper?.width, "paper"),
-    height: num(raw.paper?.height, "paper"),
-    margin: num(raw.paper?.margin, "paper"),
-  };
+  const width = clamp(num(raw.paper?.width, "paper"), 10, 2000, 297);
+  const height = clamp(num(raw.paper?.height, "paper"), 10, 2000, 210);
+  const paper = { width, height, margin: clamp(num(raw.paper?.margin, "paper"), 0, Math.min(width, height) / 2, 20) };
+  pointsRead = 0;
   const items: PageItem[] = [];
   for (const it of raw.items) {
     const rotation = ([0, 90, 180, 270] as const).find((r) => r === it.rotation) ?? 0;
@@ -205,14 +254,17 @@ export async function projectFromText(text: string): Promise<Project> {
       },
       x: num(it.x, "position"),
       y: num(it.y, "position"),
-      scale: num(it.scale, "size"),
+      scale: clamp(num(it.scale, "size"), 1e-6, 1e6, 1),
       rotation,
       restored: true,
     };
     if (typeof it.penId === "string") item.penId = it.penId;
-    if (it.fill) item.fill = it.fill;
-    if (it.text) item.text = it.text;
-    if (it.shape) item.shape = it.shape;
+    const fill = readFill(it.fill as FillInfo);
+    if (fill) item.fill = fill;
+    const text = readText(it.text as TextInfo);
+    if (text) item.text = text;
+    const shape = readShape(it.shape as ShapeInfo);
+    if (shape) item.shape = shape;
     if (typeof it.svgText === "string") item.svgText = it.svgText;
     if (it.fillOnly) item.fillOnly = true;
     if (it.skip) item.skip = true;

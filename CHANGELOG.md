@@ -4,6 +4,24 @@ What changed in each version of PenPilot. Installers are on the
 [releases page](https://github.com/Ava-AgentOne/penpilot-releases/releases); the test guide
 for each step is in [`docs/test-guides/`](docs/test-guides/).
 
+## 1.0.1 (2026-10-19)
+
+Fixes from a full audit of the app.
+
+- **Plotter unplugged or switched off mid-plot:** the plot now stops cleanly, PenPilot shows the
+  plotter as disconnected, and "Continue from line" works once it's back (it used to wait forever).
+- **Motors off**, the **paper** and the **Advanced** settings are locked during a plot (also while
+  paused or waiting for a pen), so the carriage and the plan can't change under a running plot.
+- **Pasting:** text pasted into a text box stays text; only SVG pasted onto the page becomes a drawing.
+- **Project files** are range-checked when opened (sizes, fill spacing, text, paper), and very
+  large files are refused, so a damaged file can't freeze PenPilot.
+- **Security hardening:** browser permission requests are refused (except the plotter), every
+  desktop request must come from PenPilot's own screens, and Electron's fuses are set (no
+  "run as Node", no outside Node options or debugger, only the checked app.asar).
+- The Mac plotter connection is closed if the screen ever crashes or reloads.
+- The update message says when an update will finish on the next close.
+- Build tools: removed saxi's unused GitHub Pages tool; the type check is now clean.
+
 ## 1.0.0 (2026-10-19)
 
 The first full release.

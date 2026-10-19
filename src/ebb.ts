@@ -137,12 +137,38 @@ export class EBB {
           },
         }),
       )
+      // PenPilot: the plotter's replies ended (unplugged, powered off): fail
+      // whatever is waiting, so a plot stops instead of waiting forever.
+      .then(() => this.connectionLost())
       .catch((error: unknown) => {
+        this.connectionLost();
         // Swallow premature close error; the disconnect handler takes care of it
         if ((error as NodeJS.ErrnoException).code !== "ERR_STREAM_PREMATURE_CLOSE") {
           throw error;
         }
       });
+  }
+
+  /** PenPilot: set once the connection is gone; every command then fails with it. */
+  private lost: Error | null = null;
+  /** PenPilot: called once when the connection is lost (the driver then counts as disconnected). */
+  public onConnectionLost: () => void = () => {};
+
+  /**
+   * PenPilot: the connection to the plotter is gone. Fails the commands
+   * waiting for a reply (no reply will come) and any sent afterwards.
+   */
+  public connectionLost(): void {
+    if (!this.lost) {
+      this.lost = new Error("The plotter stopped answering (it was unplugged or switched off).");
+      this.onConnectionLost();
+    }
+    const waiting = this.commandQueue;
+    this.commandQueue = [];
+    for (const cmd of waiting) {
+      cmd.cancelled = true;
+      cmd.reject(this.lost);
+    }
   }
 
   public static async create(port: EBBPort, hardware: Hardware = "v3"): Promise<EBB> {
@@ -564,15 +590,22 @@ export class EBB {
   }
 
   private run<T>(cmd: string, handle: (line: string) => T | typeof PENDING): Promise<T> {
+    if (this.lost) return Promise.reject(this.lost);
     return new Promise((resolve, reject) => {
-      this.commandQueue.push({
+      const entry: PendingCommand = {
         handle,
         resolve: (value) => resolve(value as T),
         reject,
         cancelled: false,
-      });
+      };
+      this.commandQueue.push(entry);
 
-      void this.write(cmd);
+      // PenPilot: if the command can't even be sent, fail it rather than wait for a reply.
+      this.write(cmd).catch((err: unknown) => {
+        const i = this.commandQueue.indexOf(entry);
+        if (i >= 0) this.commandQueue.splice(i, 1);
+        reject(err instanceof Error ? err : new Error(String(err)));
+      });
     });
   }
 }

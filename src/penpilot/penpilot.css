@@ -813,3 +813,7 @@ button.pp-status.pp-status-chip {
 .pp-update-progress { margin: 0.25rem 0 0.6rem; font-size: 12px; }
 .pp-update-bar { height: 8px; margin-bottom: 0.3rem; border-radius: 4px; background: var(--purple-light); overflow: hidden; }
 .pp-update-bar > div { height: 100%; background: var(--teal-dark); transition: width 0.15s; }
+
+/* A group of settings locked while plotting (fieldset disables everything inside). */
+fieldset.pp-lock { min-width: 0; margin: 0; padding: 0; border: none; }
+fieldset.pp-lock:disabled { opacity: 0.6; }

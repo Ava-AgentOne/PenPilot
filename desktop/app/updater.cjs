@@ -17,6 +17,7 @@ const { execFile, spawn } = require("node:child_process");
 const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
+const { handle } = require("./ipc-guard.cjs");
 
 const RELEASES = "https://github.com/Ava-AgentOne/penpilot-releases/releases";
 const FEED = `${RELEASES}/latest/download/latest.json`;
@@ -72,6 +73,7 @@ function cannotInstallReason() {
 }
 
 let latest = null; // the newest release seen, if newer than this copy
+let waitingToInstall = false; // downloaded; installs as soon as PenPilot closes
 
 /** Fetch the feed. Returns what the UI needs, or throws with a plain message. */
 async function check() {
@@ -210,6 +212,7 @@ async function install() {
   const file = await download(latest[key], dir);
   if (key === "mac") await installMac(file, latest.version);
   else installWindows(file, key === "winPortable");
+  waitingToInstall = true;
   sendToUi("penpilot:update-progress", { installing: true });
   // Closing asks first if the page has unsaved changes; the swap waits until PenPilot really closes.
   setTimeout(() => app.quit(), 600);
@@ -217,14 +220,14 @@ async function install() {
 
 /** Check soon after opening, then every few hours; tell the UI when there's a new version. */
 function setUpUpdates(ipcMain) {
-  ipcMain.handle("penpilot:update-check", async () => {
+  handle(ipcMain, "penpilot:update-check", async () => {
     try {
       return { ok: true, ...(await check()) };
     } catch (e) {
       return { ok: false, message: e.message };
     }
   });
-  ipcMain.handle("penpilot:update-install", async () => {
+  handle(ipcMain, "penpilot:update-install", async () => {
     try {
       await install();
       return { ok: true };
@@ -232,7 +235,7 @@ function setUpUpdates(ipcMain) {
       return { ok: false, message: e.message };
     }
   });
-  ipcMain.handle("penpilot:update-page", () => shell.openExternal(`${RELEASES}/latest`));
+  handle(ipcMain, "penpilot:update-page", () => shell.openExternal(`${RELEASES}/latest`));
   if (!app.isPackaged && !process.env.PENPILOT_UPDATE_FEED) return;
   const auto = async () => {
     try {
@@ -246,4 +249,7 @@ function setUpUpdates(ipcMain) {
   setInterval(auto, CHECK_EVERY_MS);
 }
 
-module.exports = { setUpUpdates, compareVersions };
+/** An update is downloaded and waits for PenPilot to close (e.g. the user kept it open to save first). */
+const updateWaiting = () => waitingToInstall;
+
+module.exports = { setUpUpdates, compareVersions, updateWaiting };

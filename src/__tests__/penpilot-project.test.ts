@@ -191,6 +191,38 @@ describe("PenPilot projects", () => {
     expect(back.items.map((it) => !!it.skip)).toEqual([true, false, true]);
   });
 
+  it("keeps a damaged file's settings within safe limits", async () => {
+    const file = JSON.stringify({
+      format: "penpilot-project",
+      version: 1,
+      paper: { width: 1e9, height: 297, margin: 5000 },
+      pens: [],
+      items: [
+        {
+          name: "Huge shape",
+          paths: [],
+          bounds: { minX: 0, minY: 0, maxX: 1, maxY: 1 },
+          x: 0,
+          y: 0,
+          scale: 0,
+          rotation: 45,
+          shape: { kind: "star", w: 1e9, h: -5, radius: 1e9, lines: 1e6, gap: -1 },
+          fill: { kind: "lines", spacingMm: 1e-9, angle: Number.MAX_VALUE, outline: false },
+          text: { text: "x".repeat(10000), font: "f", sizeMm: 1e9, letterSpacing: 99, lineSpacing: 0, align: "up" },
+        },
+      ],
+    });
+    const p = await projectFromText(file);
+    expect(p.paper).toEqual({ width: 2000, height: 297, margin: 148.5 });
+    const it = p.items[0];
+    expect(it.rotation).toBe(0);
+    expect(it.scale).toBeGreaterThan(0);
+    expect(it.shape).toEqual({ kind: "rect", w: 2000, h: 3, radius: 1.5, lines: 10, gap: 0.1 });
+    expect(it.fill).toMatchObject({ kind: "lines", spacingMm: 0.1, outline: false });
+    expect(it.text).toMatchObject({ sizeMm: 500, letterSpacing: 5, lineSpacing: 0.3, align: "left" });
+    expect(it.text?.text).toHaveLength(5000);
+  });
+
   it("makes safe file names", () => {
     expect(fileBaseName("“Hello”")).toBe("Hello");
     expect(fileBaseName("card.penpilot")).toBe("card");

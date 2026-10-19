@@ -70,6 +70,7 @@ export function PensPanel({
   canTest,
   onTest,
   onMotorsOff,
+  canMotorsOff,
 }: {
   pens: Pen[];
   setPens: (pens: Pen[]) => void;
@@ -85,6 +86,8 @@ export function PensPanel({
   canTest: boolean;
   onTest: (pen: Pen) => void;
   onMotorsOff: () => void;
+  /** Not during a plot, even a paused one: the carriage must stay where the plot left it. */
+  canMotorsOff: boolean;
 }) {
   const pen = pens.find((p) => p.id === penId) ?? pens[0];
   // Where the pen was last sent, so changing a height moves it there live.
@@ -230,7 +233,7 @@ export function PensPanel({
       <button
         type="button"
         className="button-link pp-motors-off"
-        disabled={!canMovePen}
+        disabled={!canMotorsOff}
         onClick={onMotorsOff}
         title="Turn the motors off so you can slide the carriage by hand (e.g. back to its home corner)"
       >

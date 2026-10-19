@@ -12,6 +12,7 @@
 
 const { ipcMain } = require("electron");
 const { SerialPort } = require("serialport");
+const { handle } = require("./ipc-guard.cjs");
 const { isEBB } = require("./serial-match.cjs");
 
 const POLL_MS = 1500;
@@ -26,10 +27,30 @@ async function listPlotters() {
   return ports.filter((p) => isEBB({ vendorId: p.vendorId, productId: p.productId })).map((p) => p.path);
 }
 
-function setUpNativeSerial() {
-  ipcMain.handle("penpilot:native-serial-list", () => listPlotters());
+// If the page that opened a port goes away (crashed, reloaded), close its ports;
+// otherwise the plotter would stay "busy" until PenPilot restarts.
+const watched = new WeakSet();
+function closeWhenPageGoes(sender) {
+  if (watched.has(sender)) return;
+  watched.add(sender);
+  const closeAll = () => {
+    for (const [id, entry] of open) {
+      if (entry.sender !== sender) continue;
+      open.delete(id);
+      entry.port.close(() => {});
+    }
+  };
+  sender.on("render-process-gone", closeAll);
+  sender.on("did-start-navigation", (details) => {
+    if (details.isMainFrame && !details.isSameDocument) closeAll();
+  });
+  sender.once("destroyed", closeAll);
+}
 
-  ipcMain.handle("penpilot:native-serial-open", async (event, path) => {
+function setUpNativeSerial() {
+  handle(ipcMain, "penpilot:native-serial-list", () => listPlotters());
+
+  handle(ipcMain, "penpilot:native-serial-open", async (event, path) => {
     // Only ever open a port that is a plotter right now.
     const plotters = await listPlotters();
     if (!plotters.includes(path)) throw new Error("That port is not a plotter.");
@@ -39,6 +60,7 @@ function setUpNativeSerial() {
     const id = nextId++;
     const sender = event.sender;
     open.set(id, { port, sender });
+    closeWhenPageGoes(sender);
     port.on("data", (chunk) => {
       if (!sender.isDestroyed()) sender.send("penpilot:native-serial-data", id, new Uint8Array(chunk));
     });
@@ -50,7 +72,7 @@ function setUpNativeSerial() {
     return { id, path };
   });
 
-  ipcMain.handle("penpilot:native-serial-write", (_event, id, bytes) => {
+  handle(ipcMain, "penpilot:native-serial-write", (_event, id, bytes) => {
     const entry = open.get(id);
     if (!entry) throw new Error("Plotter connection is closed.");
     return new Promise((resolve, reject) => {
@@ -61,7 +83,7 @@ function setUpNativeSerial() {
     });
   });
 
-  ipcMain.handle("penpilot:native-serial-close", (_event, id) => {
+  handle(ipcMain, "penpilot:native-serial-close", (_event, id) => {
     const entry = open.get(id);
     if (!entry) return;
     open.delete(id);

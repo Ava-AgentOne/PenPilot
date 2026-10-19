@@ -7,7 +7,7 @@
 import React from "react";
 import type { UpdateInfo } from "./desktop.js";
 
-export type UpdateProgress = { fraction: number } | "installing" | null;
+export type UpdateProgress = { fraction: number } | "installing" | "deferred" | null;
 
 export const UpdateCard = React.memo(function UpdateCard({
   info,
@@ -57,6 +57,15 @@ export const UpdateCard = React.memo(function UpdateCard({
         </>
       ) : progress === "installing" ? (
         <p className="pp-update-text">Installing… PenPilot will close and open again on the new version.</p>
+      ) : progress === "deferred" ? (
+        <>
+          <p className="pp-update-text">The update is ready. It finishes by itself the next time you close PenPilot.</p>
+          <div className="pp-buttons">
+            <button type="button" onClick={onLater}>
+              OK
+            </button>
+          </div>
+        </>
       ) : progress ? (
         <div className="pp-update-progress" aria-live="polite">
           <div className="pp-update-bar">

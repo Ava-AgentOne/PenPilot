@@ -145,7 +145,7 @@ journalctl -f -u saxi
 
 #### Raspberry Pi Zero OTG
 
-![Pi Zero on an AxiDraw with a Y-shaped USB cable](docs/pi-zero.jpg)
+![Pi Zero on an AxiDraw with a Y-shaped USB cable](pi-zero.jpg)
 
 For the Pi Zero you can make a USB "OTG" cable out of two Micro-B cables and two 0.1" headers
 to tap into the AxiDraw's 5V servo supply to power the Pi.  This makes for a more compact

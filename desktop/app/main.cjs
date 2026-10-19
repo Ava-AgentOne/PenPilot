@@ -13,7 +13,8 @@ const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 
 const { EBB_PRODUCT_ID, EBB_VENDOR_ID, isEBB, usbIds } = require("./serial-match.cjs");
-const { setUpUpdates } = require("./updater.cjs");
+const { handle } = require("./ipc-guard.cjs");
+const { setUpUpdates, updateWaiting } = require("./updater.cjs");
 
 const UI_DIR = path.join(__dirname, "ui");
 // Windows-only helpers (driver + firmware updater) ship as extraResources.
@@ -53,6 +54,9 @@ function setUpSerial(ses) {
     callback(ebb ? ebb.portId : "");
   });
   ses.setPermissionCheckHandler((_webContents, permission) => permission === "serial");
+  // Electron grants every other permission request (camera, location, ...) by
+  // default; PenPilot needs none of them.
+  ses.setPermissionRequestHandler((_webContents, permission, callback) => callback(permission === "serial"));
   // Lets navigator.serial.getPorts() see a plugged-in plotter without a click.
   ses.setDevicePermissionHandler((details) => {
     if (details.deviceType !== "serial") return false;
@@ -274,20 +278,20 @@ async function openFileFromSystem(file) {
 
 function setUpIpc() {
   setUpUpdates(ipcMain);
-  ipcMain.handle("penpilot:info", () => ({
+  handle(ipcMain, "penpilot:info", () => ({
     platform: process.platform,
     version: app.getVersion(),
     electron: process.versions.electron,
   }));
-  ipcMain.handle("penpilot:windows-device-status", () => windowsDeviceStatus());
-  ipcMain.handle("penpilot:serial-devices", () => [...seenSerialDevices.values()]);
-  ipcMain.handle("penpilot:plotter-present", () => plotterPresent());
-  ipcMain.handle("penpilot:request-plotter-port", (event) => requestPlotterPort(event.sender));
-  ipcMain.handle("penpilot:install-driver", () => installWindowsDriver());
-  ipcMain.handle("penpilot:open-firmware-updater", () => openFirmwareUpdater());
+  handle(ipcMain, "penpilot:windows-device-status", () => windowsDeviceStatus());
+  handle(ipcMain, "penpilot:serial-devices", () => [...seenSerialDevices.values()]);
+  handle(ipcMain, "penpilot:plotter-present", () => plotterPresent());
+  handle(ipcMain, "penpilot:request-plotter-port", (event) => requestPlotterPort(event.sender));
+  handle(ipcMain, "penpilot:install-driver", () => installWindowsDriver());
+  handle(ipcMain, "penpilot:open-firmware-updater", () => openFirmwareUpdater());
   // Draw the user's eye when the plot needs them (e.g. to change pen) while
   // PenPilot is in the background: bounce the Dock icon / flash the taskbar.
-  ipcMain.handle("penpilot:attention", (event) => {
+  handle(ipcMain, "penpilot:attention", (event) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (!win || win.isFocused()) return;
     if (process.platform === "darwin") app.dock?.bounce("critical");
@@ -296,17 +300,17 @@ function setUpIpc() {
       win.once("focus", () => win.flashFrame(false));
     }
   });
-  ipcMain.handle("penpilot:save-file-as", (event, kind, name, text) =>
+  handle(ipcMain, "penpilot:save-file-as", (event, kind, name, text) =>
     saveFileAs(BrowserWindow.fromWebContents(event.sender), kind, name, text),
   );
-  ipcMain.handle("penpilot:save-file", (_event, file, text) => saveFileTo(file, text));
-  ipcMain.handle("penpilot:open-project", (event) => openProject(BrowserWindow.fromWebContents(event.sender)));
-  ipcMain.handle("penpilot:take-open-files", async () => {
+  handle(ipcMain, "penpilot:save-file", (_event, file, text) => saveFileTo(file, text));
+  handle(ipcMain, "penpilot:open-project", (event) => openProject(BrowserWindow.fromWebContents(event.sender)));
+  handle(ipcMain, "penpilot:take-open-files", async () => {
     uiWantsFiles = true;
     const files = waitingFiles.splice(0);
     return Promise.all(files.map(readProjectFile));
   });
-  ipcMain.handle("penpilot:open-external", (_event, url) => {
+  handle(ipcMain, "penpilot:open-external", (_event, url) => {
     if (typeof url === "string" && /^https:\/\//.test(url)) shell.openExternal(url);
   });
 }
@@ -419,6 +423,8 @@ function createWindow() {
       detail: "Your page has changes that aren't saved. Use Save first to keep them.",
     });
     if (choice === 0) event.preventDefault(); // close anyway
+    // Kept open during an update: it finishes when PenPilot does close.
+    else if (updateWaiting()) win.webContents.send("penpilot:update-progress", { deferred: true });
   });
   win.loadURL("app://penpilot/index.html");
 }
