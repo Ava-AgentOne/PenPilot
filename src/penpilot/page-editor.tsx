@@ -505,13 +505,30 @@ export function DrawingsPanel({
                 aria-label={`Plot ${it.name}`}
                 onChange={(e) => pageDispatch({ type: "plot", id: it.id, on: e.target.checked })}
               />
+              <MenuButton
+                className="pp-item-pen-menu"
+                caret={false}
+                disabled={locked}
+                title={`Drawn with ${penName(penOf(it))}. Click to choose another pen.`}
+                ariaLabel={`Pen for ${it.name}: ${penName(penOf(it))}`}
+                label={<PenSwatch pen={penOf(it)} />}
+                items={pens.map((p) => ({
+                  label: (
+                    <>
+                      <PenSwatch pen={p} />
+                      {penName(p)}
+                      {p.id === penOf(it).id ? " ✓" : ""}
+                    </>
+                  ),
+                  onSelect: () => pageDispatch({ type: "pen", id: it.id, penId: p.id }),
+                }))}
+              />
               <button
                 type="button"
                 className={`button-link pp-item-name${it.id === page.selectedId ? " pp-item-name--selected" : ""}${it.skip ? " pp-item-name--off" : ""}`}
                 onClick={() => pageDispatch({ type: "select", id: it.id })}
                 title={it.name}
               >
-                <PenSwatch pen={penOf(it)} />
                 {itemOverflows(it, drawable) ? "⚠ " : ""}
                 {it.name}
               </button>

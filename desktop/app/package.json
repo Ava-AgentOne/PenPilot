@@ -1,7 +1,7 @@
 {
   "name": "penpilot",
   "productName": "PenPilot",
-  "version": "0.9.1",
+  "version": "0.9.2",
   "description": "Standalone app for the AxiDraw V3 pen plotter",
   "author": "Ava-AgentOne",
   "license": "AGPL-3.0-only",

@@ -75,12 +75,17 @@ export function MenuButton({
   disabled,
   className,
   title,
+  ariaLabel,
+  caret = true,
 }: {
   label: React.ReactNode;
   items: MenuItem[];
   disabled?: boolean;
   className?: string;
   title?: string;
+  ariaLabel?: string;
+  /** Show the ▾ after the label. */
+  caret?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
@@ -105,9 +110,11 @@ export function MenuButton({
         aria-haspopup="menu"
         aria-expanded={open}
         title={title}
+        aria-label={ariaLabel}
         onClick={() => setOpen(!open)}
       >
-        {label} <span aria-hidden="true">▾</span>
+        {label}
+        {caret && <span aria-hidden="true"> ▾</span>}
       </button>
       {open && (
         <div className="pp-menu" role="menu">

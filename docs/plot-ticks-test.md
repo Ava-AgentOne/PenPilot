@@ -1,6 +1,6 @@
-# Choose what to plot (0.9.1)
+# Choose what to plot, and pens from the list (0.9.2)
 
-About 10 minutes on the Mac. Install PenPilot 0.9.1 first (quit the old one, drag the new
+About 10 minutes on the Mac. Install PenPilot 0.9.2 first (quit the old one, drag the new
 one into Applications, and choose **Replace**). Put an A4 sheet in and leave it in place
 for the whole test.
 
@@ -16,8 +16,13 @@ for the whole test.
    drawing.
 7. Tick the second drawing and plot: now it's drawn too.
 8. **File → Save**, then open the project again: the ticks are as you left them.
+9. **Pen from the list:** with two pens set up, click the **coloured dot** beside a drawing in
+   the Drawings list. A small menu shows your pens (✓ marks the current one). Pick the other
+   pen: the dot and the drawing on the page change colour, and the plot section lists both
+   pens.
 
 ## Report back
 
 - Did each plot draw only the ticked drawings?
 - Did the text line up with the drawing that was already on the paper?
+- Was picking a pen from the dot easy?

@@ -2,12 +2,12 @@
 
 This is the first test on the Windows PC. About 30 minutes. Copy these from the Mac
 (`PenPilot/release/windows/`) to the PC, e.g. on a USB stick:
-`PenPilot-Setup-0.9.1.exe`, `PenPilot-Portable-0.9.1.exe`, `penpilot-test.svg`, and a
+`PenPilot-Setup-0.9.2.exe`, `PenPilot-Portable-0.9.2.exe`, `penpilot-test.svg`, and a
 project you saved on the Mac (e.g. `Card.penpilot`).
 
 ## 1. Install and first open
 
-1. Run **PenPilot-Setup-0.9.1.exe**. Windows may say "Windows protected your PC": press
+1. Run **PenPilot-Setup-0.9.2.exe**. Windows may say "Windows protected your PC": press
    **More info** → **Run anyway** (only this once; the app isn't paid-signed).
 2. Install with the normal choices. PenPilot opens, with the new icon on the desktop and in
    the Start menu. The welcome guide appears: read it, then **Start**.
@@ -38,7 +38,7 @@ project you saved on the Mac (e.g. `Card.penpilot`).
 
 ## 5. Portable version (optional, 2 minutes)
 
-Quit PenPilot, then run **PenPilot-Portable-0.9.1.exe** straight from the USB stick. It
+Quit PenPilot, then run **PenPilot-Portable-0.9.2.exe** straight from the USB stick. It
 should open and find the plotter without installing anything.
 
 ## Report back
