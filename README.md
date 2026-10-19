@@ -66,7 +66,9 @@ release), commit, push the tag `v<version>`, run `npm run dist:mac`, download th
 into `release/windows/`, then run
 `node desktop/scripts/publish-release.mjs <version> docs/release-notes/<version>.md`.
 It publishes the installers, the source code of that version and `latest.json` (which the app
-reads for updates) to [penpilot-releases](https://github.com/Ava-AgentOne/penpilot-releases).
+reads for updates) to [penpilot-releases](https://github.com/Ava-AgentOne/penpilot-releases),
+and adds the same release page, with the installers, to this repo. Then add the version to
+`CHANGELOG.md`.
 
 | Folder | What's in it |
 |---|---|
