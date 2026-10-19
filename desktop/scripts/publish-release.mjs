@@ -9,9 +9,11 @@
 // files are in release/windows/ (from the GitHub Actions build of that tag).
 //
 //   node desktop/scripts/publish-release.mjs 1.0.0 path/to/notes.md
+//   node desktop/scripts/publish-release.mjs 1.0.0 path/to/notes.md --notes-only
 //
 // notes.md: a short "what's new" list; its "- " lines become the notes in the
-// update message.
+// update message and the "What's new" list on the release page. --notes-only
+// just rewrites an existing release's page from the notes.
 
 import { execFileSync } from "node:child_process";
 import crypto from "node:crypto";
@@ -20,7 +22,7 @@ import path from "node:path";
 
 const REPO = "Ava-AgentOne/penpilot-releases";
 const root = path.resolve(import.meta.dirname, "..", "..");
-const [version, notesFile] = process.argv.slice(2);
+const [version, notesFile, flag] = process.argv.slice(2);
 if (!version || !notesFile) {
   console.error("Usage: node desktop/scripts/publish-release.mjs <version> <notes.md>");
   process.exit(1);
@@ -29,6 +31,38 @@ const appVersion = JSON.parse(fs.readFileSync(path.join(root, "desktop/app/packa
 if (appVersion !== version) throw new Error(`desktop/app/package.json says ${appVersion}, not ${version}`);
 
 const tag = `v${version}`;
+
+// The release page: what's new (the notes), then how to get it.
+const notesText = fs.readFileSync(notesFile, "utf8");
+const intro = notesText
+  .split("\n")
+  .filter((l) => l.trim() && !l.startsWith("- "))
+  .join("\n");
+const changes = notesText.split("\n").filter((l) => l.startsWith("- "));
+const body = [
+  intro,
+  "",
+  `## What's new in ${version}`,
+  "",
+  ...changes,
+  "",
+  "## Get it",
+  "",
+  `- **Mac** (Apple Silicon): \`PenPilot-${version}-mac-arm64.dmg\`, then drag PenPilot into Applications.`,
+  `- **Windows 10 / 11**: \`PenPilot-Setup-${version}.exe\` (or \`PenPilot-Portable-${version}.exe\` without installing).`,
+  "- **Already have PenPilot?** It offers this update by itself (or use **Help → Check for updates…**).",
+  "",
+  `The source code of this version is in \`PenPilot-${version}-source.zip\` (AGPL-3.0).`,
+  "",
+].join("\n");
+const bodyPath = path.join(root, "release/release-notes.md");
+fs.mkdirSync(path.dirname(bodyPath), { recursive: true });
+fs.writeFileSync(bodyPath, body);
+if (flag === "--notes-only") {
+  execFileSync("gh", ["release", "edit", tag, "--repo", REPO, "--notes-file", bodyPath], { stdio: "inherit" });
+  console.log(`Updated the notes of ${tag}`);
+  process.exit(0);
+}
 const files = {
   mac: path.join(root, `release/PenPilot-${version}-mac-arm64.zip`),
   macDmg: path.join(root, `release/PenPilot-${version}-mac-arm64.dmg`),
@@ -46,11 +80,7 @@ const entry = (f) => ({
   sha256: crypto.createHash("sha256").update(fs.readFileSync(f)).digest("hex"),
   size: fs.statSync(f).size,
 });
-const notes = fs
-  .readFileSync(notesFile, "utf8")
-  .split("\n")
-  .filter((l) => l.startsWith("- "))
-  .map((l) => l.slice(2).trim());
+const notes = changes.map((l) => l.slice(2).trim());
 const latest = {
   version,
   date: new Date().toISOString().slice(0, 10),
@@ -74,7 +104,7 @@ execFileSync(
     "--title",
     `PenPilot ${version}`,
     "--notes-file",
-    notesFile,
+    bodyPath,
     "--latest",
     ...Object.values(files),
     latestPath,
