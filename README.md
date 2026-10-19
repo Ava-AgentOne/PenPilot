@@ -11,6 +11,7 @@
 
 <p align="center">
   <a href="https://github.com/Ava-AgentOne/penpilot-releases/releases/latest"><strong>Download the latest version</strong></a>
+  · <a href="CHANGELOG.md">What's changed</a>
 </p>
 
 ## Top features

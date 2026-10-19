@@ -1,0 +1,81 @@
+# Changelog
+
+What changed in each version of PenPilot. Installers are on the
+[releases page](https://github.com/Ava-AgentOne/penpilot-releases/releases); the test guide
+for each step is in [`docs/test-guides/`](docs/test-guides/).
+
+## 1.0.0 (2026-10-19)
+
+The first full release.
+
+- **Automatic updates:** PenPilot checks for a new version when it opens and every few hours,
+  shows what's new, and installs it with **Update now** (Mac: swaps itself and reopens;
+  Windows: runs the new installer). **Help → Check for updates…**
+- Releases are published with the installers, the source code of that version and the update file.
+
+## 0.9.3 (2026-10-19)
+
+- **Workspace toolbar** above the page: undo, redo, save, duplicate, remove, zoom, fit, and
+  show/hide the pen-up moves.
+- **Undo / redo** for every change on the page (quick repeats count as one step).
+- **Zoom** with the buttons, ⌘+ / ⌘− / ⌘0, or by pinching; the page scrolls when zoomed in.
+
+## 0.9.2 (2026-10-19)
+
+- Click the **coloured dot** beside a drawing to choose its pen.
+
+## 0.9.1 (2026-10-18)
+
+- A **plot tick** beside each drawing: unticked drawings stay on the page but aren't plotted.
+- After a plot, **Untick them** unticks what was just drawn, so new text can be plotted alone,
+  lined up with what's already on the paper.
+
+## 0.9.0 (2026-10-18)
+
+- **Tidier side panel:** New / Open / Save / Export in the **File menu**; Pen, Paper, Drawings
+  and Advanced fold up with a one-line summary; one **+ Add** menu; Frame and Plot side by side.
+
+## 0.8.0 (2026-10-18)
+
+- **App icon**, a **welcome guide** on first open (and from Help).
+- **Double-click a project** to open it; only one PenPilot runs at a time.
+- Plain wording for the advanced settings; **Motors off** to move the carriage by hand.
+
+## 0.7.0 (2026-10-18)
+
+- **Projects:** save and reopen the whole page as a `.penpilot` file (photos keep their exact lines).
+- **Export SVG**, one layer per pen.
+- **Shapes:** rectangles, circles and a page border.
+
+## 0.6.0 (2026-10-18)
+
+- **Saved pens**, each with its own heights, speed, line width and colour; a **test square**.
+- **Several pens on one page:** PenPilot stops and asks for the next pen.
+- **Stop, then continue from any line** (for example after a pen runs dry).
+- Lines shown at the pen's real width.
+
+## 0.5.0 (2026-10-18)
+
+- **Hatch fill** for shapes and letters: lines, cross-hatch or concentric; holes stay empty.
+- **Filled letters** for the traced fonts.
+
+## 0.4.0 and 0.4.1 (2026-10-18)
+
+- **Single-line text** in 41 single-stroke fonts, 22 of them handwriting.
+- **Arabic and more handwriting fonts**, traced into one pen line per letter.
+
+## 0.3.0 and 0.3.1 (2026-10-18)
+
+- **Tracing:** pictures become single pen lines (centre lines) or outlines.
+- **Photo styles:** 23 Plotterfun styles turn photos into line art.
+
+## 0.2.0 (2026-10-18)
+
+- **Page editor:** several drawings on one page; move, resize, turn; paper sizes, portrait or
+  landscape (plotted sideways when needed).
+- **Frame:** the lifted pen traces the drawing's area; live progress while plotting.
+
+## 0.1.0 (2026-10-18)
+
+- PenPilot as a **standalone app** for Mac and Windows, built on saxi.
+- **Plotter check** on start-up; direct USB connection on the Mac; **Reverse pen direction**.
