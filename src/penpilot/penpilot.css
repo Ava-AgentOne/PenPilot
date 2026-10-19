@@ -733,3 +733,56 @@ button.pp-status.pp-status-chip {
 }
 .control-panel .pp-item-pen-menu > button:hover:not(:disabled) { border-color: var(--purple-light); }
 .pp-item-list .pp-item-pen-menu > button .pp-swatch { width: 12px; height: 12px; margin: 0; }
+
+/* ---- Workspace toolbar and zoom ---------------------------------------------------- */
+
+.preview-area.pp-workspace {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+}
+.pp-toolbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  height: 40px;
+  padding: 0 0.5rem;
+  border-bottom: 1px solid var(--purple-light);
+  background: white;
+}
+.pp-toolbar button.pp-tool {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 30px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  box-shadow: none;
+  color: var(--purple-dark);
+}
+.pp-toolbar button.pp-tool:hover:not(:disabled) { border-color: var(--purple-light); background: #faf8fd; }
+.pp-toolbar button.pp-tool:disabled { color: var(--purple-light); }
+.pp-toolbar button.pp-tool.pp-tool--on { background: var(--teal-light); color: var(--teal-dark); }
+.pp-toolbar button.pp-tool.pp-tool-zoom { width: 52px; font-size: 12px; font-weight: 700; }
+.pp-tool-gap { width: 1px; height: 20px; margin: 0 6px; background: var(--purple-light); }
+
+.pp-scroller {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  padding: 20px;
+  overflow: auto;
+}
+/* margin:auto centres the page when it fits and lets it scroll from its edge when zoomed in. */
+.pp-scroller > .pp-page { flex: 0 0 auto; margin: auto; }
+/* Overlays start below the toolbar, so Undo stays reachable. */
+.pp-workspace .drag-target,
+.pp-workspace .preview-loader { top: 40px; height: auto; bottom: 0; }
+.pp-workspace .pp-file-message { top: 3.25rem; }

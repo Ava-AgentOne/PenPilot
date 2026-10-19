@@ -24,6 +24,8 @@ is in [`PLAN.md`](PLAN.md).
   - Pen: **Raise**, **Lower** and **Test square** in one row; heights, speed, width and colour under **Edit pen settings**; **+** adds a pen.
   - Drawings: one **+ Add** menu (drawing or photo, text, rectangle, circle, border). A drawing's **Pen**, **Fill** and **Size and position** fold up too.
   - Plot: **Frame** and **Plot** side by side; **Pause** and **Stop** appear only while plotting.
+- **Workspace toolbar** at the top of the page: **Undo** / **Redo** (⌘Z / ⇧⌘Z, Ctrl+Z / Ctrl+Y on Windows; also in the Edit menu), **Save**, **Duplicate** the selected drawing (⌘D), **Remove** it, **zoom** out / in with the zoom % (click it to fit), **Fit the page** (⌘0), and **show/hide the grey pen-up moves**. Undo covers every change on the page (up to 100 steps); quick repeats like dragging a slider or nudging count as one step. While typing in a text box, Undo undoes the typing. New and Open start a fresh undo history.
+- **Zoom:** pinch on the trackpad (or ⌘ / Ctrl + scroll wheel) to zoom towards the pointer; ⌘+ / ⌘− zoom the page (View menu). When zoomed in, scroll to move around; dragging, resizing and the corner dot work at any zoom.
 - **Choose what to plot:** each drawing in the list has a **tick**. Unticked drawings stay on the page (faint) but Plot and Frame leave them out, and the plot time only counts what will be drawn. After a plot finishes, **Untick them** unticks what was just drawn, so you can add text (or anything) and plot only the new part, lined up with what's already on the paper. Ticks are saved with the project. (This replaces saxi's "drawings to plot" list, which reset itself whenever anything changed.)
 
 **Projects and shapes (step 6, second half):**

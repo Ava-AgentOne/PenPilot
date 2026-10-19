@@ -333,10 +333,34 @@ function setUpMenu() {
         ...(mac ? [{ type: "separator" }, { role: "close" }] : [{ type: "separator" }, { role: "quit", label: "Exit" }]),
       ],
     },
-    { role: "editMenu" },
     {
+      // Undo / Redo go to the page (or, while typing, to the text box: the UI decides).
+      label: "Edit",
+      submenu: [
+        { label: "Undo", accelerator: "CmdOrCtrl+Z", click: send("undo") },
+        { label: "Redo", accelerator: mac ? "Shift+Cmd+Z" : "Ctrl+Y", click: send("redo") },
+        { type: "separator" },
+        { role: "cut" },
+        { role: "copy" },
+        { role: "paste" },
+        { role: "selectAll" },
+        { type: "separator" },
+        { label: "Duplicate drawing", accelerator: "CmdOrCtrl+D", click: send("duplicate") },
+      ],
+    },
+    {
+      // Zoom works on the page, not the whole window.
       label: "View",
-      submenu: [{ role: "resetZoom" }, { role: "zoomIn" }, { role: "zoomOut" }, { type: "separator" }, { role: "togglefullscreen" }],
+      submenu: [
+        { label: "Zoom in", accelerator: "CmdOrCtrl+=", click: send("zoom-in") },
+        { label: "Zoom in", accelerator: "CmdOrCtrl+Plus", click: send("zoom-in"), visible: false },
+        { label: "Zoom out", accelerator: "CmdOrCtrl+-", click: send("zoom-out") },
+        { label: "Fit the page", accelerator: "CmdOrCtrl+0", click: send("zoom-fit") },
+        { type: "separator" },
+        { label: "Show or hide pen-up moves", click: send("toggle-travel") },
+        { type: "separator" },
+        { role: "togglefullscreen" },
+      ],
     },
     { role: "windowMenu" },
     {

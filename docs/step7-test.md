@@ -1,6 +1,6 @@
 # Final polish test (build step 7), Mac
 
-About 10 minutes. Install PenPilot 0.9.2 first (quit the old one, drag the new one into
+About 10 minutes. Install PenPilot 0.9.3 first (quit the old one, drag the new one into
 Applications, and choose **Replace**). The first time, right-click it → **Open**, as before.
 
 1. **Icon:** the Dock and Applications show the new icon (the pen carriage on purple). If

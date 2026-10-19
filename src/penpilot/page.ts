@@ -517,6 +517,11 @@ export function newShapeItem(kind: "rect" | "ellipse" | "border", pageSize: Size
 /** A fresh id for an item (e.g. one opened from a project). */
 export const newItemId = () => `item-${Date.now()}-${nextId++}`;
 
+/** A copy of an item, a little down and to the right of it. */
+export function duplicateItem(item: PageItem): PageItem {
+  return { ...item, id: newItemId(), x: item.x + 5, y: item.y + 5, restored: undefined };
+}
+
 /** Change a photo's detail, keeping its size on the page (and its current lines, rescaled). */
 export function setPhotoDetail(item: PageItem, detail: number): PageItem {
   if (!item.photo) return item;
@@ -553,6 +558,8 @@ export type PageAction =
   | { type: "plot"; id: string; on: boolean }
   /** Untick several items (e.g. the ones just plotted). */
   | { type: "unplot"; ids: string[] }
+  /** Put the page's drawings back as they were (undo / redo). */
+  | { type: "restore"; items: PageItem[] }
   /** Set, change or (null) remove an item's hatch fill. */
   | { type: "fill"; id: string; fill: Partial<FillInfo> | null }
   /** Text settings (panel) and laid-out strokes (usePenText). */
@@ -587,6 +594,11 @@ export function pageReducer(page: Page, action: PageAction): Page {
       return {
         ...page,
         items: page.items.map((it) => (it.id === action.id ? { ...it, skip: action.on ? undefined : true } : it)),
+      };
+    case "restore":
+      return {
+        items: action.items,
+        selectedId: action.items.some((it) => it.id === page.selectedId) ? page.selectedId : null,
       };
     case "unplot": {
       const ids = new Set(action.ids);

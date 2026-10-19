@@ -30,6 +30,7 @@ import {
   machineReach,
   newItem,
   newPhotoItem,
+  duplicateItem,
   newShapeItem,
   newTextItem,
   type PageAction,
@@ -45,6 +46,7 @@ import { usePenText } from "./penpilot/text-renderer.js";
 import { PlotterCheck } from "./penpilot/plotter-check.js";
 import { downloadText, ProjectBar } from "./penpilot/project-bar.js";
 import { WelcomeGuide, welcomeSeen } from "./penpilot/welcome.js";
+import { editingText, useZoom, WorkspaceToolbar } from "./penpilot/workspace-toolbar.js";
 import { fileBaseName, PROJECT_EXTENSION, pageToSvg, projectFromText, projectToText } from "./penpilot/project.js";
 import {
   cleanPen,
@@ -827,6 +829,16 @@ function PortSelector({ driver, setDriver, hardware }: PortSelectorProps) {
   );
 }
 
+/** Edits that, repeated quickly on the same drawing, make one undo step (sliders, typing, nudges). */
+const COALESCED_EDITS = new Set<PageAction["type"]>([
+  "nudge",
+  "update",
+  "fill",
+  "shape",
+  "textSettings",
+  "photoSettings",
+]);
+
 /** Page actions that change the page itself (so it has unsaved changes). */
 const PAGE_EDITS = new Set<PageAction["type"]>([
   "add",
@@ -900,10 +912,51 @@ function Root() {
   // photos and text finishing drawing.
   const [projectFile, setProjectFile] = useState<{ name: string; path?: string } | null>(null);
   const [dirty, setDirty] = useState(false);
+
+  // Undo / redo: the drawings as they were before each edit. Quick repeats of
+  // the same edit (a slider being dragged, typing, nudging) count as one step.
+  const history = useRef<{ past: PageItem[][]; future: PageItem[][]; last: { key: string; at: number } | null }>({
+    past: [],
+    future: [],
+    last: null,
+  });
+  const [, setHistoryVersion] = useState(0);
+  const itemsNow = useRef(page.items);
+  itemsNow.current = page.items;
   const editPage = React.useCallback((a: PageAction) => {
-    if (PAGE_EDITS.has(a.type)) setDirty(true);
+    if (PAGE_EDITS.has(a.type)) {
+      setDirty(true);
+      const h = history.current;
+      const id = "id" in a ? a.id : "item" in a ? a.item.id : "";
+      const editKey = `${a.type}:${id}`;
+      const now = Date.now();
+      const repeat = h.last?.key === editKey && now - h.last.at < 1000 && COALESCED_EDITS.has(a.type);
+      if (!repeat) {
+        h.past.push(itemsNow.current);
+        if (h.past.length > 100) h.past.shift();
+      }
+      h.last = { key: editKey, at: now };
+      h.future = [];
+      setHistoryVersion((n) => n + 1);
+    }
     pageDispatch(a);
   }, []);
+  const stepHistory = (back: boolean) => {
+    const h = history.current;
+    const from = back ? h.past : h.future;
+    const to = back ? h.future : h.past;
+    const items = from.pop();
+    if (!items) return;
+    to.push(itemsNow.current);
+    h.last = null;
+    pageDispatch({ type: "restore", items });
+    setDirty(true);
+    setHistoryVersion((n) => n + 1);
+  };
+  const clearHistory = () => {
+    history.current = { past: [], future: [], last: null };
+    setHistoryVersion((n) => n + 1);
+  };
 
   // The page's lines, one group per pen; each is planned with its pen's settings.
   const [segments, setSegments] = useState<{ penId: string; paths: Path[] }[] | null>(null);
@@ -1362,6 +1415,7 @@ function Root() {
       const paper = new PaperSize({ x: project.paper.width, y: project.paper.height });
       dispatch({ type: "SET_PLAN_OPTION", value: { paperSize: paper, marginMm: project.paper.margin } });
       pageDispatch({ type: "load", items: project.items });
+      clearHistory();
       setProjectFile(file);
       setDirty(false);
       setStopped(null);
@@ -1439,14 +1493,58 @@ function Root() {
   const newPage = () => {
     if (locked || !askToDiscard()) return;
     pageDispatch({ type: "clear" });
+    clearHistory();
     setProjectFile(null);
     setDirty(false);
     setStopped(null);
   };
 
-  // The desktop app's menu bar (File, Help).
+  // Undo, redo, duplicate, remove (toolbar, menu bar, keys). In a text box,
+  // Undo and Redo belong to the text.
+  const selectedItem = page.items.find((it) => it.id === page.selectedId) ?? null;
+  const undo = () => {
+    if (editingText()) document.execCommand("undo");
+    else if (!locked) stepHistory(true);
+  };
+  const redo = () => {
+    if (editingText()) document.execCommand("redo");
+    else if (!locked) stepHistory(false);
+  };
+  const duplicateSelected = () => {
+    if (selectedItem && !locked) editPage({ type: "add", items: [duplicateItem(selectedItem)] });
+  };
+  const removeSelected = () => {
+    if (selectedItem && !locked) editPage({ type: "remove", id: selectedItem.id });
+  };
+
+  // Workspace zoom, and whether the grey pen-up moves show (saved on this computer).
+  const zoomer = useZoom();
+  const [showTravel, setShowTravelState] = useState(() => {
+    try {
+      return window.localStorage.getItem("penpilot.showTravel") !== "false";
+    } catch {
+      return true;
+    }
+  });
+  const toggleTravel = () => {
+    setShowTravelState(!showTravel);
+    try {
+      window.localStorage.setItem("penpilot.showTravel", String(!showTravel));
+    } catch {
+      // ignore
+    }
+  };
+
+  // The desktop app's menu bar (File, Edit, View, Help).
   const menuCommand = useRef((_command: string) => {});
   menuCommand.current = (command) => {
+    if (command === "undo") undo();
+    else if (command === "redo") redo();
+    else if (command === "duplicate") duplicateSelected();
+    else if (command === "zoom-in") zoomer.zoomIn();
+    else if (command === "zoom-out") zoomer.zoomOut();
+    else if (command === "zoom-fit") zoomer.fit();
+    else if (command === "toggle-travel") toggleTravel();
     if (command === "new") newPage();
     else if (command === "open") void openProject();
     else if (command === "save") void saveProject(false);
@@ -1458,21 +1556,30 @@ function Root() {
   useEffect(() => desktop?.onMenu?.((command) => menuCommand.current(command)), []);
 
   // Keyboard (browser only; the desktop menu bar has its own shortcuts):
-  // Cmd/Ctrl+S saves (with Shift: save as), Cmd/Ctrl+O opens.
-  const shortcuts = useRef({ save: saveProject, open: openProject });
-  shortcuts.current = { save: saveProject, open: openProject };
+  // Cmd/Ctrl+S saves (with Shift: save as), O opens, Z / Shift+Z / Y undo and
+  // redo, D duplicates, + / - / 0 zoom.
+  const shortcuts = useRef({ save: saveProject, open: openProject, menu: menuCommand });
+  shortcuts.current = { save: saveProject, open: openProject, menu: menuCommand };
   useEffect(() => {
     if (desktop?.onMenu) return;
     const onKey = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
       const k = e.key.toLowerCase();
+      const run = (command: string) => {
+        e.preventDefault();
+        shortcuts.current.menu.current(command);
+      };
       if (k === "s") {
         e.preventDefault();
         void shortcuts.current.save(e.shiftKey);
       } else if (k === "o" && !e.shiftKey) {
         e.preventDefault();
         void shortcuts.current.open();
-      }
+      } else if ((k === "z" || k === "y") && !editingText()) run(k === "y" || e.shiftKey ? "redo" : "undo");
+      else if (k === "d") run("duplicate");
+      else if (k === "=" || k === "+") run("zoom-in");
+      else if (k === "-") run("zoom-out");
+      else if (k === "0") run("zoom-fit");
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -1496,7 +1603,8 @@ function Root() {
   }, [projectFile, unsaved]);
 
   const previewArea = useRef<HTMLDivElement>(null);
-  const previewSize = useComponentSize(previewArea);
+  // The page fits the scrolling part of the workspace (below the toolbar) at 100% zoom.
+  const previewSize = useComponentSize(zoomer.scroller);
   // The plot block is fixed to the bottom of the panel and grows (pens, continue
   // from line), so the scroll spacer follows its height.
   const plotBlock = useRef<HTMLDivElement>(null);
@@ -1761,22 +1869,44 @@ function Root() {
             </div>
           </div>
         </div>
-        <div className="preview-area" ref={previewArea}>
-          <PageCanvas
-            page={page}
-            pageDispatch={editPage}
-            pageSize={pageSize}
-            marginMm={marginMm}
-            placement={layout.placement}
-            drawable={layout.drawableOnPage}
-            plan={plan}
-            stepsPerMm={Device(hardware).stepsPerMm}
-            progress={sideJob ? null : (state.progress ?? (showContinue ? (lines[from] ?? null) : null))}
+        <div className="preview-area pp-workspace" ref={previewArea}>
+          <WorkspaceToolbar
+            canUndo={history.current.past.length > 0}
+            canRedo={history.current.future.length > 0}
+            canSave={page.items.length > 0}
+            hasSelection={selectedItem !== null}
             locked={locked}
-            penOf={penOf}
-            trueWidth={trueWidth}
-            previewSize={{ width: Math.max(0, previewSize.width - 40), height: Math.max(0, previewSize.height - 40) }}
+            zoom={zoomer.zoom}
+            showTravel={showTravel}
+            onUndo={undo}
+            onRedo={redo}
+            onSave={() => void saveProject(false)}
+            onDuplicate={duplicateSelected}
+            onDelete={removeSelected}
+            onZoomIn={zoomer.zoomIn}
+            onZoomOut={zoomer.zoomOut}
+            onFit={zoomer.fit}
+            onToggleTravel={toggleTravel}
           />
+          <div className="pp-scroller" ref={zoomer.scroller}>
+            <PageCanvas
+              page={page}
+              pageDispatch={editPage}
+              pageSize={pageSize}
+              marginMm={marginMm}
+              placement={layout.placement}
+              drawable={layout.drawableOnPage}
+              plan={plan}
+              stepsPerMm={Device(hardware).stepsPerMm}
+              progress={sideJob ? null : (state.progress ?? (showContinue ? (lines[from] ?? null) : null))}
+              locked={locked}
+              penOf={penOf}
+              trueWidth={trueWidth}
+              previewSize={{ width: Math.max(0, previewSize.width - 40), height: Math.max(0, previewSize.height - 40) }}
+              zoom={zoomer.zoom}
+              showTravel={showTravel}
+            />
+          </div>
           <PlanLoader isPlanning={isPlanning} isLoadingFile={isLoadingFile} />
           {fileMessage && (
             <div className="pp-file-message" role="alert">

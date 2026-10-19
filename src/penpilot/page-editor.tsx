@@ -123,6 +123,10 @@ type CanvasProps = {
   /** Draw lines at the pen's real width instead of as hairlines. */
   trueWidth: boolean;
   previewSize: { width: number; height: number };
+  /** 1 = the page fits the workspace; 2 = twice as big, and so on. */
+  zoom: number;
+  /** Show the grey pen-up moves of the plan. */
+  showTravel: boolean;
 };
 
 export function PageCanvas({
@@ -139,6 +143,8 @@ export function PageCanvas({
   penOf,
   trueWidth,
   previewSize,
+  zoom,
+  showTravel,
 }: CanvasProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   // Refs, not just state: pointer events can arrive before React re-renders.
@@ -151,10 +157,12 @@ export function PageCanvas({
   };
 
   // Fit the sheet into the preview area.
-  const { width, height } =
+  const fit =
     (pageSize.x / pageSize.y) * previewSize.height <= previewSize.width
       ? { width: (pageSize.x / pageSize.y) * previewSize.height, height: previewSize.height }
       : { height: (pageSize.y / pageSize.x) * previewSize.width, width: previewSize.width };
+  const width = fit.width * zoom;
+  const height = fit.height * zoom;
 
   const toMm = (e: React.PointerEvent): Vec2 => {
     const r = (svgRef.current as SVGSVGElement).getBoundingClientRect();
@@ -272,7 +280,7 @@ export function PageCanvas({
     drawable.minY > 0.01 ||
     drawable.maxX < pageSize.x - 0.01 ||
     drawable.maxY < pageSize.y - 0.01;
-  const handleR = Math.max(pageSize.x, pageSize.y) / 120;
+  const handleR = Math.max(pageSize.x, pageSize.y) / 120 / zoom; // same size on screen at any zoom
 
   return (
     <div className="preview pp-page" style={{ width, height }}>
@@ -316,7 +324,7 @@ export function PageCanvas({
             />
           );
         })}
-        {planLines && !draft && <path className="pp-travel" d={planLines.travel} />}
+        {planLines && !draft && showTravel && <path className="pp-travel" d={planLines.travel} />}
         {plotting && <path className="pp-done" d={done} />}
         {penAt && (
           <g className="pp-pen" transform={`translate(${penAt.x} ${penAt.y})`}>
