@@ -1,6 +1,6 @@
-# Workspace toolbar, undo and zoom (0.9.3)
+# Workspace toolbar, undo and zoom (1.0.0)
 
-About 10 minutes on the Mac, no plotting needed. Install PenPilot 0.9.3 first (quit the old
+About 10 minutes on the Mac, no plotting needed. Install PenPilot 1.0.0 first (quit the old
 one, drag the new one into Applications, and choose **Replace**).
 
 At the top of the page there's now a small toolbar: Undo, Redo | Save | Duplicate, Remove |

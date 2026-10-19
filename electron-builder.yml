@@ -43,7 +43,10 @@ extraResources:
     to: NOTICE.md
 
 mac:
-  target: dmg
+  # The .zip is what PenPilot downloads to update itself (desktop/app/updater.cjs).
+  target:
+    - dmg
+    - zip
   category: public.app-category.graphics-design
   # No paid Apple certificate: skip signing here, then ad-hoc sign in afterPack
   # (Apple Silicon refuses to run completely unsigned code).

@@ -11,6 +11,17 @@ export interface WindowsDeviceStatus {
   devices?: { status: string; class: string; name: string }[];
 }
 
+export interface UpdateInfo {
+  ok?: true;
+  current: string;
+  version: string;
+  available: boolean;
+  notes: string[];
+  /** Set when this copy can't update itself (e.g. not in Applications); the UI explains and links to the page. */
+  cannotInstall: string | null;
+  page: string;
+}
+
 export interface FileResult {
   ok: boolean;
   canceled?: boolean;
@@ -48,7 +59,15 @@ export interface PenPilotDesktop {
   openProject?(): Promise<FileResult & { text?: string }>;
   /** Projects double-clicked in Finder / Explorer before the UI was ready. */
   takeOpenFiles?(): Promise<(FileResult & { text?: string })[]>;
-  /** Menu bar commands ("new", "open", "save", "save-as", "export-svg", "help", "plotter-check"). */
+  /** Updates from the public releases page (desktop/app/updater.cjs). */
+  updates?: {
+    check(): Promise<UpdateInfo | { ok: false; message: string }>;
+    install(): Promise<{ ok: boolean; message?: string }>;
+    openPage(): Promise<void>;
+    onAvailable(fn: (info: UpdateInfo) => void): () => void;
+    onProgress(fn: (p: { received?: number; total?: number; installing?: boolean }) => void): () => void;
+  };
+  /** Menu bar commands ("new", "open", "save", "save-as", "export-svg", "help", "plotter-check", ...). */
   onMenu?(fn: (command: string) => void): () => void;
   /** Projects double-clicked while PenPilot is open. Returns a function to stop listening. */
   onOpenFile?(fn: (file: FileResult & { text?: string }) => void): () => void;

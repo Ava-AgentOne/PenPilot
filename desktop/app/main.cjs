@@ -13,6 +13,7 @@ const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 
 const { EBB_PRODUCT_ID, EBB_VENDOR_ID, isEBB, usbIds } = require("./serial-match.cjs");
+const { setUpUpdates } = require("./updater.cjs");
 
 const UI_DIR = path.join(__dirname, "ui");
 // Windows-only helpers (driver + firmware updater) ship as extraResources.
@@ -272,6 +273,7 @@ async function openFileFromSystem(file) {
 }
 
 function setUpIpc() {
+  setUpUpdates(ipcMain);
   ipcMain.handle("penpilot:info", () => ({
     platform: process.platform,
     version: app.getVersion(),
@@ -368,6 +370,8 @@ function setUpMenu() {
       submenu: [
         { label: "Welcome guide", click: send("help") },
         { label: "Plotter check", click: send("plotter-check") },
+        { type: "separator" },
+        { label: "Check for updates…", click: send("check-updates") },
       ],
     },
   ];

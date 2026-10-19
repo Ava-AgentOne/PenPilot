@@ -10,6 +10,28 @@ is in [`PLAN.md`](PLAN.md).
 
 
 
+## Updates
+
+PenPilot checks for a new version when it opens and every few hours, from the
+**public** releases page [Ava-AgentOne/penpilot-releases](https://github.com/Ava-AgentOne/penpilot-releases)
+(installers, each version's source code, and `latest.json`; this working repo stays private).
+When there's a newer one it shows **"PenPilot X is ready"** with what's new, and **Update now**
+downloads it, checks its SHA-256 and installs it, then PenPilot closes and opens again
+(`desktop/app/updater.cjs`). **Help → Check for updates…** checks straight away.
+
+- **Mac:** PenPilot swaps its own app for the new one (it must be in Applications, not run
+  from the disk image). Apple's own updater isn't used: it needs a paid signature.
+- **Windows:** the installed version runs the new installer silently and reopens; the
+  portable .exe replaces itself.
+
+**Publishing a release**:
+1. Set the version in `desktop/app/package.json`, write `docs/release-notes/<version>.md`
+   (its "- " lines are the notes in the update message), commit, and push a tag `v<version>`.
+   The tag makes GitHub Actions build the Windows installers.
+2. `npm run dist:mac` (dmg + the update zip), and download the Windows build into `release/windows/`.
+3. `node desktop/scripts/publish-release.mjs <version> docs/release-notes/<version>.md`:
+   uploads the installers, the source zip of that tag, and `latest.json`.
+
 ## What works now (build steps 1–7)
 
 **Final polish (step 7):**

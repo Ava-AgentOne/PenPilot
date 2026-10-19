@@ -786,3 +786,30 @@ button.pp-status.pp-status-chip {
 .pp-workspace .drag-target,
 .pp-workspace .preview-loader { top: 40px; height: auto; bottom: 0; }
 .pp-workspace .pp-file-message { top: 3.25rem; }
+
+/* ---- Update card --------------------------------------------------------------------- */
+
+.pp-update {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 150;
+  width: min(340px, calc(100vw - 2rem));
+  padding: 0.85rem 1rem 0.5rem;
+  background: white;
+  border: 2px solid var(--teal);
+  border-radius: 10px;
+  box-shadow: 3px 3px 20px rgba(0, 0, 0, 0.2);
+  color: var(--purple-dark);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.pp-update-title { font-size: 16px; font-weight: 900; }
+.pp-update-sub { margin-bottom: 0.4rem; font-size: 11px; color: var(--purple); }
+.pp-update-notes { margin: 0 0 0.5rem; padding-left: 1.1rem; }
+.pp-update-text { margin: 0 0 0.6rem; }
+.pp-update-error { margin: 0 0 0.5rem; color: #b04848; }
+.pp-update .pp-buttons button { margin-bottom: 0.4rem; font-size: 13px; }
+.pp-update-progress { margin: 0.25rem 0 0.6rem; font-size: 12px; }
+.pp-update-bar { height: 8px; margin-bottom: 0.3rem; border-radius: 4px; background: var(--purple-light); overflow: hidden; }
+.pp-update-bar > div { height: 100%; background: var(--teal-dark); transition: width 0.15s; }

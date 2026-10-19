@@ -16,6 +16,21 @@ contextBridge.exposeInMainWorld("penpilot", {
   saveFile: (file, text) => ipcRenderer.invoke("penpilot:save-file", file, text),
   openProject: () => ipcRenderer.invoke("penpilot:open-project"),
   takeOpenFiles: () => ipcRenderer.invoke("penpilot:take-open-files"),
+  updates: {
+    check: () => ipcRenderer.invoke("penpilot:update-check"),
+    install: () => ipcRenderer.invoke("penpilot:update-install"),
+    openPage: () => ipcRenderer.invoke("penpilot:update-page"),
+    onAvailable: (fn) => {
+      const h = (_e, info) => fn(info);
+      ipcRenderer.on("penpilot:update-available", h);
+      return () => ipcRenderer.removeListener("penpilot:update-available", h);
+    },
+    onProgress: (fn) => {
+      const h = (_e, p) => fn(p);
+      ipcRenderer.on("penpilot:update-progress", h);
+      return () => ipcRenderer.removeListener("penpilot:update-progress", h);
+    },
+  },
   onMenu: (fn) => {
     const h = (_e, command) => fn(command);
     ipcRenderer.on("penpilot:menu", h);

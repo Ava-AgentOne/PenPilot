@@ -1,6 +1,6 @@
-# Choose what to plot, and pens from the list (0.9.3)
+# Choose what to plot, and pens from the list (1.0.0)
 
-About 10 minutes on the Mac. Install PenPilot 0.9.3 first (quit the old one, drag the new
+About 10 minutes on the Mac. Install PenPilot 1.0.0 first (quit the old one, drag the new
 one into Applications, and choose **Replace**). Put an A4 sheet in and leave it in place
 for the whole test.
 

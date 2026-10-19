@@ -18,7 +18,7 @@ import "./style.css";
 import "./penpilot/penpilot.css";
 import { type BaseDriver, type DeviceInfo, SaxiDriver, WebSerialDriver } from "./drivers.js";
 import type { Hardware } from "./ebb.js";
-import { desktop } from "./penpilot/desktop.js";
+import { desktop, type UpdateInfo } from "./penpilot/desktop.js";
 import { framePlan } from "./penpilot/frame.js";
 import { loadPaperSizes, type SavedPaperSize, sameSize, savePaperSizes } from "./penpilot/paper-sizes.js";
 import {
@@ -45,6 +45,7 @@ import { usePhotoRenderer } from "./penpilot/photo-renderer.js";
 import { usePenText } from "./penpilot/text-renderer.js";
 import { PlotterCheck } from "./penpilot/plotter-check.js";
 import { downloadText, ProjectBar } from "./penpilot/project-bar.js";
+import { UpdateCard, type UpdateProgress } from "./penpilot/update-card.js";
 import { WelcomeGuide, welcomeSeen } from "./penpilot/welcome.js";
 import { editingText, useZoom, WorkspaceToolbar } from "./penpilot/workspace-toolbar.js";
 import { fileBaseName, PROJECT_EXTENSION, pageToSvg, projectFromText, projectToText } from "./penpilot/project.js";
@@ -1535,10 +1536,49 @@ function Root() {
     }
   };
 
+  // Updates (desktop app): "PenPilot X is ready" when the releases page has a newer version.
+  const [update, setUpdate] = useState<UpdateInfo | null>(null);
+  const [updateProgress, setUpdateProgress] = useState<UpdateProgress>(null);
+  const [updateError, setUpdateError] = useState<string | null>(null);
+  useEffect(() => {
+    const u = desktop?.updates;
+    if (!u) return;
+    const stopAvailable = u.onAvailable((info) => {
+      setUpdate(info);
+      setUpdateError(null);
+    });
+    const stopProgress = u.onProgress((p) =>
+      setUpdateProgress(p.installing ? "installing" : { fraction: p.total ? (p.received ?? 0) / p.total : 0 }),
+    );
+    return () => {
+      stopAvailable();
+      stopProgress();
+    };
+  }, []);
+  const checkForUpdates = async () => {
+    const r = await desktop?.updates?.check();
+    if (!r) return;
+    if (!("current" in r)) setFileMessage(r.message);
+    else if (r.available) {
+      setUpdate(r);
+      setUpdateError(null);
+    } else setFileMessage(`You have the newest PenPilot (${r.current}).`);
+  };
+  const installUpdate = async () => {
+    setUpdateError(null);
+    setUpdateProgress({ fraction: 0 });
+    const r = await desktop?.updates?.install();
+    if (r && !r.ok) {
+      setUpdateProgress(null);
+      setUpdateError(r.message ?? "The update didn't work. Try again later.");
+    }
+  };
+
   // The desktop app's menu bar (File, Edit, View, Help).
   const menuCommand = useRef((_command: string) => {});
   menuCommand.current = (command) => {
-    if (command === "undo") undo();
+    if (command === "check-updates") void checkForUpdates();
+    else if (command === "undo") undo();
     else if (command === "redo") redo();
     else if (command === "duplicate") duplicateSelected();
     else if (command === "zoom-in") zoomer.zoomIn();
@@ -1930,6 +1970,18 @@ function Root() {
           )}
           {showDragTarget && <DragTarget handleFile={handleFile} />}
         </div>
+        {update && (
+          <UpdateCard
+            info={update}
+            progress={updateProgress}
+            error={updateError}
+            unsaved={unsaved}
+            locked={locked}
+            onInstall={() => void installUpdate()}
+            onLater={() => setUpdate(null)}
+            onOpenPage={() => void desktop?.updates?.openPage()}
+          />
+        )}
         {showWelcome && <WelcomeGuide version={version} onClose={() => setShowWelcome(false)} />}
       </div>
     </DispatchContext.Provider>

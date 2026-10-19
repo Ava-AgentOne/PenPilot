@@ -34,7 +34,7 @@
     "test": "vitest run",
     "desktop:ui": "cross-env PENPILOT_DESKTOP=1 node build.mjs",
     "desktop": "npm run desktop:deps && npm run desktop:ui && electron desktop/app",
-    "dist:mac": "npm run lint && npm run desktop:deps && npm run desktop:ui && electron-builder --mac dmg --arm64 --publish never",
+    "dist:mac": "npm run lint && npm run desktop:deps && npm run desktop:ui && electron-builder --mac dmg zip --arm64 --publish never",
     "dist:win": "npm run lint && npm run desktop:deps && npm run desktop:ui && electron-builder --win nsis portable --x64 --publish never",
     "desktop:deps": "npm ci --prefix desktop/app --omit=dev --ignore-scripts --no-audit --no-fund"
   },
