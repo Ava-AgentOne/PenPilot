@@ -1,9 +1,8 @@
 // Publishes a PenPilot release: the installers, the source code
 // of that version (Saxi's AGPL licence asks for it next to public downloads)
 // and latest.json, which PenPilot reads to offer the update
-// (desktop/app/updater.cjs). Goes to the PUBLIC repo Ava-AgentOne/penpilot-releases;
-// the working repo stays private, but gets the same release page too (with the
-// installers), as a record.
+// (desktop/app/updater.cjs). Goes to the downloads repo Ava-AgentOne/penpilot-releases;
+// the code repo gets the same release page too (with the installers), as a record.
 //
 // Before running: the version in desktop/app/package.json is set, committed and
 // tagged vX.Y.Z; the Mac files are built (npm run dist:mac) and the Windows

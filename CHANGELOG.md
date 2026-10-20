@@ -4,6 +4,13 @@ What changed in each version of PenPilot. Installers are on the
 [releases page](https://github.com/Ava-AgentOne/penpilot-releases/releases); the test guide
 for each step is in [`docs/test-guides/`](docs/test-guides/).
 
+## 1.0.3 (2026-10-20)
+
+Tidy-up release; PenPilot works exactly as in 1.0.2.
+
+- The app's author, and the "Company" shown in the Windows file details, is now Ava-AgentOne.
+- Personal details removed from the project's history and test guides.
+
 ## 1.0.2 (2026-10-20)
 
 Windows updates fixed, after the first test on a Windows PC.
