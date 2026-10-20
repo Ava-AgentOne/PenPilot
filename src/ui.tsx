@@ -18,7 +18,7 @@ import "./style.css";
 import "./penpilot/penpilot.css";
 import { type BaseDriver, type DeviceInfo, SaxiDriver, WebSerialDriver } from "./drivers.js";
 import type { Hardware } from "./ebb.js";
-import { desktop, type UpdateInfo } from "./penpilot/desktop.js";
+import { desktop, isWindows, type UpdateInfo } from "./penpilot/desktop.js";
 import { framePlan } from "./penpilot/frame.js";
 import { loadPaperSizes, type SavedPaperSize, sameSize, savePaperSizes } from "./penpilot/paper-sizes.js";
 import {
@@ -2029,6 +2029,9 @@ function DragTarget({ handleFile }: { handleFile: (file: File) => void }) {
     </div>
   );
 }
+
+// Windows-only styling (thin scrollbars).
+if (isWindows) document.documentElement.classList.add("pp-windows");
 
 // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 // biome-ignore lint/style/noNonNullAssertion: static element

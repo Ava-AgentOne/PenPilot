@@ -101,11 +101,20 @@ async function describeForTroubleshooting(driver: BaseDriver | null): Promise<st
   }
   try {
     const devices = await desktop.serialDevices();
+    // Every port the system showed PenPilot is listed; only the AxiDraw is ever let through.
+    const how = (d: { via: string; isPlotter: boolean }) =>
+      d.via === "picker"
+        ? d.isPlotter
+          ? "chosen when connecting"
+          : "in the connect list, not chosen"
+        : d.isPlotter
+          ? "access allowed"
+          : "access refused";
     lines.push(
       devices.length === 0
         ? "Serial devices seen: none"
-        : `Serial devices seen:\n${devices
-            .map((d) => `  ${d.id} ${d.name}${d.isPlotter ? "  <- AxiDraw" : ""} (via ${d.via})\n    ${d.raw}`)
+        : `Serial devices seen (PenPilot only uses an AxiDraw, 04D8:FD92):\n${devices
+            .map((d) => `  ${d.id} ${d.name}${d.isPlotter ? "  <- AxiDraw" : ""} (${how(d)})\n    ${d.raw}`)
             .join("\n")}`,
     );
   } catch {}

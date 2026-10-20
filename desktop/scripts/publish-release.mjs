@@ -75,8 +75,8 @@ if (flag === "--notes-only") {
 const files = {
   mac: path.join(root, `release/PenPilot-${version}-mac-arm64.zip`),
   macDmg: path.join(root, `release/PenPilot-${version}-mac-arm64.dmg`),
-  win: path.join(root, `release/windows/PenPilot-Setup-${version}.exe`),
-  winPortable: path.join(root, `release/windows/PenPilot-Portable-${version}.exe`),
+  windows: path.join(root, `release/windows/PenPilot-Setup-${version}.exe`),
+  windowsPortable: path.join(root, `release/windows/PenPilot-Portable-${version}.exe`),
   source: path.join(root, `release/PenPilot-${version}-source.zip`),
 };
 // The source of exactly this version (the tag), as a zip.
@@ -95,8 +95,10 @@ const latest = {
   date: new Date().toISOString().slice(0, 10),
   notes,
   mac: entry(files.mac),
-  win: entry(files.win),
-  winPortable: entry(files.winPortable),
+  // Not "win" / "winPortable": PenPilot 1.0.0 and 1.0.1 read those, and their
+  // Windows install never finishes, so they must not see updates (see updater.cjs).
+  windows: entry(files.windows),
+  windowsPortable: entry(files.windowsPortable),
   source: entry(files.source),
 };
 const latestPath = path.join(root, "release/latest.json");
@@ -138,8 +140,8 @@ execFileSync(
     codeBodyPath,
     "--latest",
     files.macDmg,
-    files.win,
-    files.winPortable,
+    files.windows,
+    files.windowsPortable,
   ],
   { stdio: "inherit" },
 );

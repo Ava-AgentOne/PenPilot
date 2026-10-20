@@ -817,3 +817,9 @@ button.pp-status.pp-status-chip {
 /* A group of settings locked while plotting (fieldset disables everything inside). */
 fieldset.pp-lock { min-width: 0; margin: 0; padding: 0; border: none; }
 fieldset.pp-lock:disabled { opacity: 0.6; }
+
+/* ---- Windows ------------------------------------------------------------------------- */
+/* Windows draws wide grey scrollbars; keep them thin and in PenPilot's colours (the Mac's hide by themselves). */
+.pp-windows .control-panel,
+.pp-windows .pp-scroller,
+.pp-windows .pp-card { scrollbar-width: thin; scrollbar-color: var(--purple-light) transparent; }

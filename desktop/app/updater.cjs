@@ -7,10 +7,14 @@
 //   - Mac: unzips the new PenPilot.app, then a small script waits for this
 //     PenPilot to close, swaps the app in place and opens it again. (Apple's
 //     own updater needs a paid signature, so it isn't used.)
-//   - Windows (installed): runs the new installer silently once PenPilot has
-//     closed; it reopens PenPilot when done.
-//   - Windows (portable .exe): puts the new .exe next to the old one, removes
-//     the old one, and starts the new one.
+//   - Windows: a hidden helper waits for PenPilot to close, then runs the new
+//     installer silently (or swaps the portable .exe) and opens PenPilot
+//     again (desktop/app/windows-update.cjs).
+//
+// The feed lists Windows files as "windows" and "windowsPortable". 1.0.0 and
+// 1.0.1 read "win" / "winPortable" instead, and their Windows install never
+// finishes (PenPilot closes and stays closed), so the feed leaves those out:
+// those copies see no update and are updated by hand once.
 
 const { app, BrowserWindow, net, shell } = require("electron");
 const { execFile, spawn } = require("node:child_process");
@@ -18,6 +22,7 @@ const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 const { handle } = require("./ipc-guard.cjs");
+const windowsUpdate = require("./windows-update.cjs");
 
 const RELEASES = "https://github.com/Ava-AgentOne/penpilot-releases/releases";
 const FEED = `${RELEASES}/latest/download/latest.json`;
@@ -41,10 +46,10 @@ function compareVersions(a, b) {
   return 0;
 }
 
-/** Which download this copy of PenPilot needs: "mac", "win" or "winPortable". */
+/** Which download this copy of PenPilot needs: "mac", "windows" or "windowsPortable". */
 function platformKey() {
   if (process.platform === "darwin") return "mac";
-  if (process.platform === "win32") return process.env.PORTABLE_EXECUTABLE_FILE ? "winPortable" : "win";
+  if (process.platform === "win32") return process.env.PORTABLE_EXECUTABLE_FILE ? "windowsPortable" : "windows";
   return null;
 }
 
@@ -180,26 +185,23 @@ async function installMac(zip, version) {
   spawn("/bin/bash", [script], { detached: true, stdio: "ignore" }).unref();
 }
 
-function installWindows(file, portable) {
+async function installWindows(file, portable) {
   const dir = path.dirname(file);
-  const script = path.join(dir, "update.cmd");
-  const wait = [
-    "@echo off",
-    ":wait",
-    `tasklist /FI "PID eq ${process.pid}" 2>nul | find "${process.pid}" >nul`,
-    "if not errorlevel 1 ( timeout /t 1 /nobreak >nul & goto wait )",
-  ];
+  const log = path.join(dir, "update.log");
+  fs.rmSync(log, { force: true });
+  fs.rmSync(windowsUpdate.cancelFile(log), { force: true });
+  const args = relaunchArgs();
+  let script;
   if (portable) {
     const old = process.env.PORTABLE_EXECUTABLE_FILE;
     const fresh = path.join(path.dirname(old), path.basename(file));
-    wait.push(`copy /Y "${file}" "${fresh}" >nul`);
-    if (path.resolve(fresh) !== path.resolve(old)) wait.push(`del "${old}"`);
-    wait.push(`start "" "${fresh}"`);
+    script = windowsUpdate.portableScript({ pid: process.pid, launcherPid: process.ppid, downloaded: file, old, fresh, args, log });
   } else {
-    wait.push(`start "" "${file}" --updated /S --force-run`);
+    script = windowsUpdate.setupScript({ pid: process.pid, setup: file, exe: process.execPath, args, log });
   }
-  fs.writeFileSync(script, `${wait.join("\r\n")}\r\n`);
-  spawn("cmd.exe", ["/c", script], { detached: true, stdio: "ignore", windowsHide: true }).unref();
+  windowsUpdate.startHelper(script, dir);
+  // Only close PenPilot once the helper is surely running; otherwise say so and stay open.
+  await windowsUpdate.waitForLog(log);
 }
 
 /** Download and install the newest release, then close PenPilot so it can finish. */
@@ -210,12 +212,13 @@ async function install() {
   const key = platformKey();
   const dir = path.join(app.getPath("temp"), `penpilot-update-${latest.version}`);
   const file = await download(latest[key], dir);
-  if (key === "mac") await installMac(file, latest.version);
-  else installWindows(file, key === "winPortable");
-  waitingToInstall = true;
   sendToUi("penpilot:update-progress", { installing: true });
+  if (key === "mac") await installMac(file, latest.version);
+  else await installWindows(file, key === "windowsPortable");
+  waitingToInstall = true;
   // Closing asks first if the page has unsaved changes; the swap waits until PenPilot really closes.
-  setTimeout(() => app.quit(), 600);
+  // Windows takes about a minute before PenPilot opens again, so the message stays up a little longer.
+  setTimeout(() => app.quit(), key === "mac" ? 600 : 2500);
 }
 
 /** Check soon after opening, then every few hours; tell the UI when there's a new version. */

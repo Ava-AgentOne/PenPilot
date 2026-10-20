@@ -5,7 +5,7 @@
  */
 
 import React from "react";
-import type { UpdateInfo } from "./desktop.js";
+import { isWindows, type UpdateInfo } from "./desktop.js";
 
 export type UpdateProgress = { fraction: number } | "installing" | "deferred" | null;
 
@@ -56,7 +56,11 @@ export const UpdateCard = React.memo(function UpdateCard({
           </div>
         </>
       ) : progress === "installing" ? (
-        <p className="pp-update-text">Installing… PenPilot will close and open again on the new version.</p>
+        <p className="pp-update-text">
+          {isWindows
+            ? "Installing… PenPilot will close now and open again by itself on the new version in about a minute."
+            : "Installing… PenPilot will close and open again on the new version."}
+        </p>
       ) : progress === "deferred" ? (
         <>
           <p className="pp-update-text">The update is ready. It finishes by itself the next time you close PenPilot.</p>
