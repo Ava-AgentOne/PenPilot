@@ -276,22 +276,15 @@ function HardwareOptions({ state, driver }: { state: State; driver: BaseDriver |
   const currentHardware = state.deviceInfo?.hardware || state.planOptions.hardware;
 
   return (
-    <div>
-      <label title="Which plotter this is (it sets the pen-lift motor and step sizes)">
-        Plotter model:
-        <select
-          value={currentHardware}
-          onChange={(e) => handleHardwareChange(e.target.value as Hardware)}
-          style={{ marginLeft: "8px" }}
-          disabled={!driver}
-        >
-          <option value="v3">AxiDraw V3</option>
-          <option value="brushless">AxiDraw V3 Brushless</option>
-          <option value="nextdraw-2234">NextDraw 2234</option>
-          <option value="idraw-h-se">iDraw H SE</option>
-        </select>
-      </label>
-    </div>
+    <label className="pp-setting" title="Which plotter this is (it sets the pen-lift motor and step sizes)">
+      <span>Plotter model</span>
+      <select value={currentHardware} onChange={(e) => handleHardwareChange(e.target.value as Hardware)} disabled={!driver}>
+        <option value="v3">AxiDraw V3</option>
+        <option value="brushless">AxiDraw V3 Brushless</option>
+        <option value="nextdraw-2234">NextDraw 2234</option>
+        <option value="idraw-h-se">iDraw H SE</option>
+      </select>
+    </label>
   );
 }
 
@@ -311,43 +304,30 @@ function RealWidthOption({ value, onChange }: { value: boolean; onChange: (v: bo
 function OriginOptions({ state }: { state: State }) {
   const dispatch = useContext(DispatchContext);
   const device = Device(state.planOptions.hardware);
+  const home = state.planOptions.penHome;
+  const setHome = (penHome: typeof home) => dispatch({ type: "SET_PLAN_OPTION", value: { penHome } });
   return (
-    <div className="flex">
-      <label title="Starting and final position of pen when plotting (x)">
-        pen home x (mm):
-        <input
-          type="number"
-          min="0"
-          max={state.planOptions.paperSize.size.x * device.stepsPerMm}
-          step="10"
-          value={state.planOptions.penHome.x}
-          onChange={(e) =>
-            dispatch({
-              type: "SET_PLAN_OPTION",
-              value: { penHome: { x: Number(e.target.value), y: state.planOptions.penHome.y } },
-            })
-          }
-        />
-      </label>
-      <label title="Starting and final position of pen when plotting (y)">
-        pen home y (mm):
-        <input
-          type="number"
-          min="0"
-          max={state.planOptions.paperSize.size.y * device.stepsPerMm}
-          step="10"
-          value={state.planOptions.penHome.y}
-          onChange={(e) =>
-            dispatch({
-              type: "SET_PLAN_OPTION",
-              value: { penHome: { x: state.planOptions.penHome.x, y: Number(e.target.value) } },
-            })
-          }
-        />
-      </label>
-    </div>
+    <>
+      <NumberSetting
+        label="Pen home, x (mm)"
+        title="Starting and final position of the pen when plotting (x)"
+        value={home.x}
+        step="10"
+        max={state.planOptions.paperSize.size.x * device.stepsPerMm}
+        onChange={(x) => setHome({ x, y: home.y })}
+      />
+      <NumberSetting
+        label="Pen home, y (mm)"
+        title="Starting and final position of the pen when plotting (y)"
+        value={home.y}
+        step="10"
+        max={state.planOptions.paperSize.size.y * device.stepsPerMm}
+        onChange={(y) => setHome({ x: home.x, y })}
+      />
+    </>
   );
 }
+
 
 const MY_SIZE = "★ "; // marks the user's saved sizes in the paper list
 
@@ -640,142 +620,121 @@ function ResetToDefaultsButton() {
   );
 }
 
-function PlanConfig({ state }: { state: State }) {
-  const dispatch = useContext(DispatchContext);
+/** One Advanced setting: its name on the left, a small number box on the right. */
+function NumberSetting({
+  label,
+  title,
+  value,
+  step,
+  max,
+  onChange,
+}: {
+  label: React.ReactNode;
+  title?: string;
+  value: number;
+  step: string;
+  max?: number;
+  onChange: (value: number) => void;
+}) {
   return (
-    <div>
-      <form>
-        <div className="pp-advanced-heading">Line clean-up</div>
-        <label className="flex-checkbox" title="Draw the lines in an order that keeps the pen's moves in the air short">
-          <input
-            type="checkbox"
-            checked={state.planOptions.sortPaths}
-            onChange={(e) => dispatch({ type: "SET_PLAN_OPTION", value: { sortPaths: !!e.target.checked } })}
-          />
-          reorder lines to save time
-        </label>
-      </form>
-      <div className="pp-fields">
-        <label className="pp-field" title="Points of a line closer together than this are merged into one">
-          merge points closer than (mm)
-          <input
-            type="number"
-            value={state.planOptions.pointJoinRadius}
-            step="0.1"
-            min="0"
-            onChange={(e) => dispatch({ type: "SET_PLAN_OPTION", value: { pointJoinRadius: Number(e.target.value) } })}
-          />
-        </label>
-        <label
-          className="pp-field"
-          title="Lines whose ends are closer than this are joined, so the pen doesn't lift between them"
-        >
-          join lines with ends closer than (mm)
-          <input
-            type="number"
-            value={state.planOptions.pathJoinRadius}
-            step="0.1"
-            min="0"
-            onChange={(e) => dispatch({ type: "SET_PLAN_OPTION", value: { pathJoinRadius: Number(e.target.value) } })}
-          />
-        </label>
-      </div>
-      <div>
-        <label title="Lines shorter than this are left out (specks)">
-          skip lines shorter than (mm)
-          <input
-            type="number"
-            value={state.planOptions.minimumPathLength}
-            step="0.1"
-            min="0"
-            onChange={(e) =>
-              dispatch({ type: "SET_PLAN_OPTION", value: { minimumPathLength: Number(e.target.value) } })
-            }
-          />
-        </label>
-        <div className="pp-advanced-heading">Movement</div>
-        <div className="flex">
-          <label title="Acceleration when the pen is down (in mm/s^2)">
-            acceleration while drawing (mm/s<sup>2</sup>)
-            <input
-              type="number"
-              value={state.planOptions.penDownAcceleration}
-              step="0.1"
-              min="0"
-              onChange={(e) =>
-                dispatch({ type: "SET_PLAN_OPTION", value: { penDownAcceleration: Number(e.target.value) } })
-              }
-            />
-          </label>
-        </div>
-        <label>
-          corner speed while drawing
-          <input
-            type="number"
-            value={state.planOptions.penDownCorneringFactor}
-            step="0.01"
-            min="0"
-            onChange={(e) =>
-              dispatch({ type: "SET_PLAN_OPTION", value: { penDownCorneringFactor: Number(e.target.value) } })
-            }
-          />
-        </label>
-        <div className="flex">
-          <label title="Acceleration when the pen is up (in mm/s^2)">
-            acceleration, pen up (mm/s<sup>2</sup>)
-            <input
-              type="number"
-              value={state.planOptions.penUpAcceleration}
-              step="0.1"
-              min="0"
-              onChange={(e) =>
-                dispatch({ type: "SET_PLAN_OPTION", value: { penUpAcceleration: Number(e.target.value) } })
-              }
-            />
-          </label>
-          <label title="Maximum velocity when the pen is up (in mm/s)">
-            speed, pen up (mm/s)
-            <input
-              type="number"
-              value={state.planOptions.penUpMaxVelocity}
-              step="0.1"
-              min="0"
-              onChange={(e) =>
-                dispatch({ type: "SET_PLAN_OPTION", value: { penUpMaxVelocity: Number(e.target.value) } })
-              }
-            />
-          </label>
-        </div>
-        <div className="flex">
-          <label title="How long the pen takes to lift (in seconds)">
-            time to lift the pen (s)
-            <input
-              type="number"
-              value={state.planOptions.penLiftDuration}
-              step="0.01"
-              min="0"
-              onChange={(e) =>
-                dispatch({ type: "SET_PLAN_OPTION", value: { penLiftDuration: Number(e.target.value) } })
-              }
-            />
-          </label>
-          <label title="How long the pen takes to drop (in seconds)">
-            time to lower the pen (s)
-            <input
-              type="number"
-              value={state.planOptions.penDropDuration}
-              step="0.01"
-              min="0"
-              onChange={(e) =>
-                dispatch({ type: "SET_PLAN_OPTION", value: { penDropDuration: Number(e.target.value) } })
-              }
-            />
-          </label>
-        </div>
-      </div>
-    </div>
+    <label className="pp-setting" title={title}>
+      <span>{label}</span>
+      <input type="number" value={value} step={step} min="0" max={max} onChange={(e) => onChange(Number(e.target.value))} />
+    </label>
   );
 }
+
+function PlanConfig({ state }: { state: State }) {
+  const dispatch = useContext(DispatchContext);
+  const set = (value: Partial<PlanOptions>) => dispatch({ type: "SET_PLAN_OPTION", value });
+  const o = state.planOptions;
+  return (
+    <>
+      <div className="pp-advanced-group">
+        <div className="pp-advanced-heading">Line clean-up</div>
+        <label className="pp-checkbox" title="Draw the lines in an order that keeps the pen's moves in the air short">
+          <input type="checkbox" checked={o.sortPaths} onChange={(e) => set({ sortPaths: !!e.target.checked })} />
+          Reorder lines to save time
+        </label>
+        <NumberSetting
+          label="Merge points closer than (mm)"
+          title="Points of a line closer together than this are merged into one"
+          value={o.pointJoinRadius}
+          step="0.1"
+          onChange={(v) => set({ pointJoinRadius: v })}
+        />
+        <NumberSetting
+          label="Join line ends closer than (mm)"
+          title="Lines whose ends are closer than this are joined, so the pen doesn't lift between them"
+          value={o.pathJoinRadius}
+          step="0.1"
+          onChange={(v) => set({ pathJoinRadius: v })}
+        />
+        <NumberSetting
+          label="Skip lines shorter than (mm)"
+          title="Lines shorter than this are left out (specks)"
+          value={o.minimumPathLength}
+          step="0.1"
+          onChange={(v) => set({ minimumPathLength: v })}
+        />
+      </div>
+      <div className="pp-advanced-group">
+        <div className="pp-advanced-heading">Movement</div>
+        <NumberSetting
+          label={
+            <>
+              Acceleration, drawing (mm/s<sup>2</sup>)
+            </>
+          }
+          title="Acceleration when the pen is down"
+          value={o.penDownAcceleration}
+          step="0.1"
+          onChange={(v) => set({ penDownAcceleration: v })}
+        />
+        <NumberSetting
+          label="Corner speed, drawing"
+          title="How fast the pen goes round corners while drawing"
+          value={o.penDownCorneringFactor}
+          step="0.01"
+          onChange={(v) => set({ penDownCorneringFactor: v })}
+        />
+        <NumberSetting
+          label={
+            <>
+              Acceleration, pen up (mm/s<sup>2</sup>)
+            </>
+          }
+          title="Acceleration when the pen is up"
+          value={o.penUpAcceleration}
+          step="0.1"
+          onChange={(v) => set({ penUpAcceleration: v })}
+        />
+        <NumberSetting
+          label="Speed, pen up (mm/s)"
+          title="Top speed when the pen is up"
+          value={o.penUpMaxVelocity}
+          step="0.1"
+          onChange={(v) => set({ penUpMaxVelocity: v })}
+        />
+        <NumberSetting
+          label="Time to lift the pen (s)"
+          title="How long the pen takes to lift"
+          value={o.penLiftDuration}
+          step="0.01"
+          onChange={(v) => set({ penLiftDuration: v })}
+        />
+        <NumberSetting
+          label="Time to lower the pen (s)"
+          title="How long the pen takes to drop"
+          value={o.penDropDuration}
+          step="0.01"
+          onChange={(v) => set({ penDropDuration: v })}
+        />
+      </div>
+    </>
+  );
+}
+
 
 type PortSelectorProps = {
   driver: BaseDriver | null;
@@ -1764,6 +1723,7 @@ function Root() {
           <Fold
             id="pens"
             title="Pen"
+            icon="pen"
             summary={
               <>
                 <PenSwatch pen={penById(pens, penId)} />
@@ -1787,7 +1747,7 @@ function Root() {
               canMotorsOff={connected && !plotting && sideJob === null}
             />
           </Fold>
-          <Fold id="paper" title="Paper" defaultOpen={false} summary={paperSummary(state.planOptions)}>
+          <Fold id="paper" title="Paper" icon="paper" defaultOpen={false} summary={paperSummary(state.planOptions)}>
             <OrientationNotes
               isLandscape={state.planOptions.paperSize.isLandscape}
               onOrientation={(landscape) =>
@@ -1811,6 +1771,7 @@ function Root() {
           <Fold
             id="drawings"
             title="Drawings"
+            icon="drawings"
             summary={page.items.length === 0 ? "none yet" : String(page.items.length)}
           >
             <DrawingsPanel
@@ -1830,24 +1791,31 @@ function Root() {
               }
             />
           </Fold>
-          <Fold id="advanced" title="Advanced" defaultOpen={false}>
-            <RealWidthOption value={trueWidth} onChange={setTrueWidth} />
-            <label
-              className="pp-checkbox"
-              title="Tick this if pressing Raise lowers the pen on your plotter. Common on AxiDraw-compatible clones."
-            >
-              <input
-                type="checkbox"
-                checked={state.planOptions.penLiftReversed}
-                disabled={locked}
-                onChange={(e) => dispatch({ type: "SET_PLAN_OPTION", value: { penLiftReversed: e.target.checked } })}
-              />
-              Reverse pen direction
-            </label>
+          <Fold id="advanced" title="Advanced" icon="advanced" defaultOpen={false}>
+            <div className="pp-advanced-group">
+              <div className="pp-advanced-heading">Preview</div>
+              <RealWidthOption value={trueWidth} onChange={setTrueWidth} />
+            </div>
+            {/* Locked while plotting: a change would replan under the running plot. */}
             <fieldset className="pp-lock" disabled={locked}>
+              <div className="pp-advanced-group">
+                <div className="pp-advanced-heading">Plotter</div>
+                <HardwareOptions state={state} driver={driver} />
+                <label
+                  className="pp-checkbox"
+                  title="Tick this if pressing Raise lowers the pen on your plotter. Common on AxiDraw-compatible clones."
+                >
+                  <input
+                    type="checkbox"
+                    checked={state.planOptions.penLiftReversed}
+                    disabled={locked}
+                    onChange={(e) => dispatch({ type: "SET_PLAN_OPTION", value: { penLiftReversed: e.target.checked } })}
+                  />
+                  Reverse pen direction
+                </label>
+                <OriginOptions state={state} />
+              </div>
               <PlanConfig state={state} />
-              <OriginOptions state={state} />
-              <HardwareOptions state={state} driver={driver} />
               <ResetToDefaultsButton />
             </fieldset>
           </Fold>

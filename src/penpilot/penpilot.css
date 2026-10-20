@@ -648,6 +648,69 @@ button.pp-status.pp-status-chip {
 .pp-fold--sub .pp-fold-title { font-weight: 700; }
 .pp-fold--sub > .pp-fold-body { padding: 0 0.6rem 0.5rem; }
 
+/* The side panel's main sections are colour-coded cards on a light lavender
+   panel: a coloured left edge and icon per section, and the header stays in
+   view while you scroll through an open section. */
+.control-panel { background-color: #f5f2f9; }
+[data-tone="pen"] { --pp-tone: var(--red); --pp-tone-ink: #c65a5a; }
+[data-tone="paper"] { --pp-tone: var(--teal); --pp-tone-ink: #2e9f96; }
+[data-tone="drawings"] { --pp-tone: var(--purple); --pp-tone-ink: var(--purple); }
+[data-tone="advanced"] { --pp-tone: #a9a1b8; --pp-tone-ink: #857c94; }
+.pp-fold.pp-fold--card,
+.pp-fold.pp-fold--card:last-of-type {
+  margin: 0 0.5rem 0.5rem;
+  background: white;
+  border: 1px solid #ddd4ea;
+  border-left: 4px solid var(--pp-tone);
+  border-radius: 6px;
+}
+.control-panel .pp-fold--card > button.pp-fold-head {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  padding: 0.6rem 0.75rem;
+  background: white;
+  border-radius: 0 5px 5px 0;
+}
+.control-panel .pp-fold--card.pp-fold--open > button.pp-fold-head {
+  border-bottom: 1px solid #eee8f5;
+  border-radius: 0 5px 0 0;
+}
+.control-panel .pp-fold--card > button.pp-fold-head:hover { background: #f7f4fb; }
+.pp-fold-icon { flex: 0 0 auto; color: var(--pp-tone-ink); }
+.pp-fold--card > .pp-fold-body { padding: 0.6rem 0.75rem 0.75rem; }
+
+/* Advanced: small groups of "name ... value" rows, all left-aligned */
+.pp-advanced-group { margin: 0 0 0.75rem; }
+.pp-advanced-group .pp-advanced-heading {
+  margin: 0 0 0.4rem;
+  padding-bottom: 0.2rem;
+  border-bottom: 1px solid var(--purple-light);
+  font-size: 11px;
+}
+.pp-advanced-group .pp-checkbox { margin: 0 0 0.4rem; font-size: 12px; line-height: 1.3; text-align: left; }
+.pp-advanced-group .pp-checkbox input { flex: 0 0 auto; }
+.pp-setting {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 0.35rem;
+  font-size: 12px;
+  line-height: 1.3;
+  text-align: left;
+  color: var(--purple-dark);
+}
+.pp-setting > span { flex: 1 1 auto; min-width: 0; }
+.pp-setting input[type=number] {
+  flex: 0 0 4.5rem;
+  width: 4.5rem;
+  margin: 0;
+  padding: 0.2rem 0.35rem;
+  font-size: 13px;
+  text-align: right;
+}
+.pp-setting select { flex: 0 0 7.5rem; width: 7.5rem; height: 26px; margin: 0; padding: 0 0.35rem; font-size: 12px; }
+
 /* Menus */
 .pp-menu-button { position: relative; }
 .pp-menu {
@@ -693,7 +756,7 @@ button.pp-status.pp-status-chip {
 /* Plot block */
 .pp-plot-row { display: grid; grid-template-columns: 1fr 1.6fr; gap: 8px; }
 .section-body__plot .pp-plot-row button { margin: 0; }
-.control-panel-bottom { border-top: 1px solid var(--purple-light); padding-top: 0.5rem; }
+.control-panel-bottom { z-index: 10; border-top: 1px solid var(--purple-light); padding-top: 0.5rem; }
 .pp-checkbox.pp-frame-loop { margin: 0.35rem 0 0; }
 
 /* ---- Plot ticks ------------------------------------------------------------------- */
