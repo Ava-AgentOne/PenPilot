@@ -4,6 +4,18 @@ What changed in each version of PenPilot. Installers are on the
 [releases page](https://github.com/Ava-AgentOne/penpilot-releases/releases); the test guide
 for each step is in [`docs/test-guides/`](docs/test-guides/).
 
+## 1.0.4 (2026-10-20)
+
+A clearer side panel: open sections were hard to tell apart.
+
+- **Colour-coded cards:** Pen, Paper, Drawings and Advanced are white cards on a light lavender
+  panel, each with its own coloured edge and icon (pen red, paper teal, drawings purple,
+  advanced grey).
+- **Pinned headers:** an open section's header stays at the top of the panel while you scroll
+  through it, so you always know which section you're in.
+- **Tidier Advanced:** grouped into Preview, Plotter, Line clean-up and Movement, with one
+  left-aligned "name … value" row per setting (the labels used to be centred and wrap).
+
 ## 1.0.3 (2026-10-20)
 
 Tidy-up release; PenPilot works exactly as in 1.0.2.
