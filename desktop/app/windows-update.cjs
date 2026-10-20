@@ -11,7 +11,15 @@
 // 1.0.0 and 1.0.1 used a cmd script that waited with `tasklist | find`. Started
 // hidden, cmd has no console, `tasklist` prints nothing and `find` waits
 // forever, so PenPilot closed and the update never ran. The helper only uses
-// PowerShell's own process and file commands, which need no console.
+// PowerShell's own process and file commands.
+//
+// How the helper is started matters too (tried on a Windows 10 VM, 2026-10-20):
+//   - spawned "detached" (no console at all), Windows PowerShell 5.1 quits at
+//     once without running anything;
+//   - spawned normally, it's closed together with PenPilot (Node keeps its
+//     children in a job that ends when PenPilot does).
+// So a short-lived PowerShell, spawned normally, starts the helper with
+// Start-Process: the helper gets its own hidden console and isn't in that job.
 //
 // No Electron here, so the scripts can be tried on their own.
 
@@ -116,18 +124,26 @@ function powershellPath() {
   return path.win32.join(process.env.SystemRoot || "C:\\Windows", "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
 }
 
+const encode = (script) => Buffer.from(script, "utf16le").toString("base64");
+const PS_OPTIONS = ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden"];
+
 /**
- * Start `script` in a hidden PowerShell that keeps running after PenPilot closes.
- * It runs from `dir` (never PenPilot's own folder, which the installer replaces).
- * Passed encoded, so Windows' script-running policy doesn't apply.
+ * The program and arguments that start `script` as a hidden helper running
+ * from `dir` (never PenPilot's own folder, which the installer replaces).
+ * Scripts are passed encoded, so Windows' script-running policy doesn't apply.
  */
+function helperCommand(script, dir) {
+  const ps = powershellPath();
+  const helperArgs = [...PS_OPTIONS, "-EncodedCommand", encode(script)].join(" ");
+  const starter = `Start-Process -FilePath ${psQuote(ps)} -WindowStyle Hidden -WorkingDirectory ${psQuote(dir)} -ArgumentList ${psQuote(helperArgs)}`;
+  return [ps, [...PS_OPTIONS, "-EncodedCommand", encode(starter)]];
+}
+
+/** Start `script` as a hidden helper that keeps running after PenPilot closes. */
 function startHelper(script, dir) {
-  const encoded = Buffer.from(script, "utf16le").toString("base64");
-  const child = spawn(
-    powershellPath(),
-    ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-EncodedCommand", encoded],
-    { cwd: dir, detached: true, stdio: "ignore", windowsHide: true },
-  );
+  const [ps, args] = helperCommand(script, dir);
+  // Not detached (see the top of this file); the starter ends as soon as the helper is running.
+  const child = spawn(ps, args, { cwd: dir, stdio: "ignore", windowsHide: true });
   child.on("error", () => {}); // reported by waitForLog below
   child.unref();
 }
@@ -148,4 +164,4 @@ async function waitForLog(log, ms = 15000) {
   throw new Error("PenPilot couldn't start its installer helper. Download the new version from the releases page instead.");
 }
 
-module.exports = { setupScript, portableScript, startHelper, waitForLog, cancelFile, psQuote, winQuote };
+module.exports = { setupScript, portableScript, helperCommand, startHelper, waitForLog, cancelFile, psQuote, winQuote };

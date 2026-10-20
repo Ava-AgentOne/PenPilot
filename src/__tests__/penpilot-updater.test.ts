@@ -27,9 +27,11 @@ type Scripts = {
     args?: string[];
     log: string;
   }) => string;
+  helperCommand: (script: string, dir: string) => [string, string[]];
   psQuote: (s: string) => string;
   winQuote: (s: string) => string;
 };
+const decode = (b64: string) => Buffer.from(b64, "base64").toString("utf16le");
 const win = require("../../desktop/app/windows-update.cjs") as Scripts;
 
 // The Windows helper runs hidden with no console, where 1.0.0/1.0.1's
@@ -106,5 +108,32 @@ describe("PenPilot updates on Windows", () => {
     });
     expect(s).not.toContain("Remove-Item -LiteralPath");
     expect(s).not.toContain("Wait-Closed undefined");
+  });
+
+  // Spawned detached, PowerShell 5.1 quits at once; spawned normally, it ends with
+  // PenPilot. A short-lived starter launches the helper with Start-Process instead.
+  it("starts the helper through a starter PowerShell", () => {
+    const script = "Log 'hello'";
+    const [ps, args] = win.helperCommand(script, `${tmp}`);
+    expect(ps).toMatch(/\\System32\\WindowsPowerShell\\v1\.0\\powershell\.exe$/);
+    expect(args.slice(0, -1)).toEqual([
+      "-NoProfile",
+      "-NonInteractive",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-WindowStyle",
+      "Hidden",
+      "-EncodedCommand",
+    ]);
+    const starter = decode(args[args.length - 1]);
+    const m = starter.match(
+      /^Start-Process -FilePath '(.+)' -WindowStyle Hidden -WorkingDirectory '(.+)' -ArgumentList '(.+)'$/,
+    );
+    expect(m).not.toBeNull();
+    expect(m?.[1]).toBe(ps);
+    expect(m?.[2]).toBe(tmp);
+    const helperArgs = (m?.[3] ?? "").split(" ");
+    expect(helperArgs.slice(0, -1)).toEqual(args.slice(0, -1));
+    expect(decode(helperArgs[helperArgs.length - 1])).toBe(script);
   });
 });

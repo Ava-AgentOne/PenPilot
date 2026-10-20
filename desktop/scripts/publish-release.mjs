@@ -10,11 +10,17 @@
 // files are in release/windows/ (from the GitHub Actions build of that tag).
 //
 //   node desktop/scripts/publish-release.mjs 1.0.0 path/to/notes.md
+//   node desktop/scripts/publish-release.mjs 1.0.0 path/to/notes.md --prerelease
+//   node desktop/scripts/publish-release.mjs 1.0.0 path/to/notes.md --promote
 //   node desktop/scripts/publish-release.mjs 1.0.0 path/to/notes.md --notes-only
 //
 // notes.md: a short "what's new" list; its "- " lines become the notes in the
-// update message and the "What's new" list on the release page. --notes-only
-// just rewrites an existing release's page from the notes.
+// update message and the "What's new" list on the release page.
+// --prerelease publishes it as a test release: PenPilot only reads the latest
+// (non-test) release, so nobody is offered it, but a copy started with
+// PENPILOT_UPDATE_FEED=<the release's latest.json> is. --promote then makes
+// those same files the latest release, which everyone is offered.
+// --notes-only just rewrites an existing release's page from the notes.
 
 import { execFileSync } from "node:child_process";
 import crypto from "node:crypto";
@@ -41,7 +47,9 @@ const intro = notesText
   .filter((l) => l.trim() && !l.startsWith("- "))
   .join("\n");
 const changes = notesText.split("\n").filter((l) => l.startsWith("- "));
+const prerelease = flag === "--prerelease";
 const body = [
+  ...(prerelease ? ["**Test release:** not offered to PenPilot yet.", ""] : []),
   intro,
   "",
   `## What's new in ${version}`,
@@ -66,12 +74,16 @@ fs.writeFileSync(
   codeBodyPath,
   `${body}\n---\n\nPublic downloads (and the update file the app reads): https://github.com/${REPO}/releases/tag/${tag}\n`,
 );
-if (flag === "--notes-only") {
-  execFileSync("gh", ["release", "edit", tag, "--repo", REPO, "--notes-file", bodyPath], { stdio: "inherit" });
-  execFileSync("gh", ["release", "edit", tag, "--repo", CODE_REPO, "--notes-file", codeBodyPath], { stdio: "inherit" });
-  console.log(`Updated the notes of ${tag} in both repos`);
+if (flag === "--notes-only" || flag === "--promote") {
+  const promote = flag === "--promote" ? ["--prerelease=false", "--latest"] : [];
+  execFileSync("gh", ["release", "edit", tag, "--repo", REPO, "--notes-file", bodyPath, ...promote], { stdio: "inherit" });
+  execFileSync("gh", ["release", "edit", tag, "--repo", CODE_REPO, "--notes-file", codeBodyPath, ...promote], {
+    stdio: "inherit",
+  });
+  console.log(flag === "--promote" ? `${tag} is now the latest release in both repos` : `Updated the notes of ${tag} in both repos`);
   process.exit(0);
 }
+const latestFlags = prerelease ? ["--prerelease", "--latest=false"] : ["--latest"];
 const files = {
   mac: path.join(root, `release/PenPilot-${version}-mac-arm64.zip`),
   macDmg: path.join(root, `release/PenPilot-${version}-mac-arm64.dmg`),
@@ -116,7 +128,7 @@ execFileSync(
     `PenPilot ${version}`,
     "--notes-file",
     bodyPath,
-    "--latest",
+    ...latestFlags,
     ...Object.values(files),
     latestPath,
   ],
@@ -138,7 +150,7 @@ execFileSync(
     `PenPilot ${version}`,
     "--notes-file",
     codeBodyPath,
-    "--latest",
+    ...latestFlags,
     files.macDmg,
     files.windows,
     files.windowsPortable,

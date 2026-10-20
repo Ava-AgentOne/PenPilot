@@ -4,6 +4,22 @@ What changed in each version of PenPilot. Installers are on the
 [releases page](https://github.com/Ava-AgentOne/penpilot-releases/releases); the test guide
 for each step is in [`docs/test-guides/`](docs/test-guides/).
 
+## 1.0.2 (2026-10-20)
+
+Windows updates fixed, after the first test on a Windows PC.
+
+- **Windows updates now finish:** a small hidden helper waits for PenPilot to close, runs the
+  new installer silently and opens PenPilot again (or swaps the portable .exe). In 1.0.0 and
+  1.0.1 the wait never ended, so PenPilot closed and the update never ran; the installer's own
+  "start afterwards" didn't reopen it either. Each step is logged in `update.log`.
+- If the helper can't start, PenPilot stays open and says so.
+- Windows copies on 1.0.0 or 1.0.1 aren't offered updates (their updater is the broken one):
+  install 1.0.2 once by hand. The update file lists Windows files under new names for this.
+- Thin scrollbars in PenPilot's colours on Windows.
+- Plotter check's technical details say which serial ports were refused.
+- Releases can go out as a test release first (`publish-release.mjs --prerelease`, then
+  `--promote`).
+
 ## 1.0.1 (2026-10-19)
 
 Fixes from a full audit of the app.
