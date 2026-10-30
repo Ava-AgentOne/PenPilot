@@ -54,7 +54,7 @@
     "@types/ws": "8.18",
     "@types/yargs": "^17.0.0",
     "cross-env": "^10.0.0",
-    "electron": "44.9.0",
+    "electron": "44.10.0",
     "electron-builder": "26.15.3",
     "esbuild": "^0.28.0",
     "esbuild-plugin-inline-worker": "^0.1.1",
