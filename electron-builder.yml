@@ -3,7 +3,7 @@
 appId: com.avaagentone.penpilot
 productName: PenPilot
 copyright: "PenPilot, based on saxi by Jeremy Rose and contributors. AGPL-3.0."
-electronVersion: 44.9.0
+electronVersion: 44.10.0
 
 directories:
   app: desktop/app
