@@ -4,6 +4,14 @@ What changed in each version of PenPilot. Installers are on the
 [releases page](https://github.com/Ava-AgentOne/penpilot-releases/releases); the test guide
 for each step is in [`docs/test-guides/`](docs/test-guides/).
 
+## 1.0.5 (2026-10-30)
+
+Security update; PenPilot works exactly as in 1.0.4.
+
+- **Electron 44.10.0** (was 44.9.0): includes Electron's mitigation for compromised eMudhra
+  intermediate certificates ([GHSA-jr5w-w6x2-84p9](https://github.com/advisories/GHSA-jr5w-w6x2-84p9),
+  rated high), plus the other Electron fixes up to 44.10.0.
+
 ## 1.0.4 (2026-10-20)
 
 A clearer side panel: open sections were hard to tell apart.
