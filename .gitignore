@@ -17,3 +17,11 @@ dist/
 # PenPilot desktop build output
 /desktop/app/ui/
 /desktop/app/node_modules/
+
+# Private working notes (*.private.md) — Claude's carried-over project notes
+# and anything else that names people, devices, serials or home addresses.
+# Added 2026-11-03 when long project memories were moved out of Claude's
+# memory store and into the project folder. Lives beside the code so it is
+# where you look, but never enters git: a repo with no remote is still one
+# `git remote add` away from being public.
+*.private.md
