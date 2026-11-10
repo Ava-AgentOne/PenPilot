@@ -60,15 +60,24 @@ npm run dist:mac    # Mac installer and update zip → release/
 The Windows installer and portable `.exe` are built by GitHub Actions
 (`.github/workflows/desktop.yml`), by hand or when a `v*` tag is pushed.
 
-**Releasing a version:** set the version in `desktop/app/package.json`, write
-`docs/release-notes/<version>.md` (its `- ` lines are the changes shown in the app and on the
-release), commit, push the tag `v<version>`, run `npm run dist:mac`, download the Windows build
-into `release/windows/`, then run
-`node desktop/scripts/publish-release.mjs <version> docs/release-notes/<version>.md`.
-It publishes the installers, the source code of that version and `latest.json` (which the app
-reads for updates) to [penpilot-releases](https://github.com/Ava-AgentOne/penpilot-releases),
-and adds the same release page, with the installers, to this repo. Then add the version to
-`CHANGELOG.md`.
+**Releasing a version:**
+
+1. Set the version in `desktop/app/package.json` and write `docs/release-notes/<version>.md`
+   (its `- ` lines are the changes shown in the app and on the release). Commit, and push the
+   tag `v<version>`.
+2. Run `npm run dist:mac`, and download the Windows build of that tag into `release/windows/`.
+3. Publish it as a test release:
+   `node desktop/scripts/publish-release.mjs <version> docs/release-notes/<version>.md --prerelease`.
+   Nobody is offered it yet, but a copy started with
+   `PENPILOT_UPDATE_FEED=<that release's latest.json>` is, so you can try the update.
+4. When it works, run the same command with `--promote`. It becomes the latest release, which
+   everyone is offered.
+5. Add the version to `CHANGELOG.md`.
+
+The script publishes the installers, the source code of that version and `latest.json` (which
+the app reads for updates) to [penpilot-releases](https://github.com/Ava-AgentOne/penpilot-releases),
+and adds the same release page, with the installers, to this repo. `--notes-only` rewrites a
+release page from the notes.
 
 | Folder | What's in it |
 |---|---|
